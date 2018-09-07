@@ -6,8 +6,7 @@ import edu.mcw.rgd.datamodel.Reference;
 import edu.mcw.rgd.xml.XomAnalyzer;
 import nu.xom.Element;
 import nu.xom.Elements;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.log4j.Logger;
 
 import java.text.DateFormat;
 import java.text.ParseException;
@@ -23,7 +22,7 @@ import java.util.*;
 public class ReferenceXOMAnalyzer extends XomAnalyzer {
 
     // lof all updates of reference objects with pubmed ids
-    private static final Log logUpdates = LogFactory.getLog("log_updates");
+    private static final Logger logUpdates = Logger.getLogger("log_updates");
 
     private Map<String, Integer> mapPubmedIdToRefRgdId;
 

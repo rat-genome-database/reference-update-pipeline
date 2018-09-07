@@ -4,8 +4,7 @@ import edu.mcw.rgd.datamodel.Author;
 import edu.mcw.rgd.datamodel.Reference;
 import edu.mcw.rgd.datamodel.XdbId;
 import edu.mcw.rgd.process.Utils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.log4j.Logger;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
@@ -39,8 +38,8 @@ public class ReferenceUpdateObject{
     Reference updatedRefObj;
     String issn="";
     String pubmedID="";
-    private static final Log logStatus = LogFactory.getLog("log_status");
-    private static final Log logConflicts = LogFactory.getLog("log_conflicts");
+    private static final Logger logStatus = Logger.getLogger("log_status");
+    private static final Logger logConflicts = Logger.getLogger("log_conflicts");
 
     public ReferenceUpdateObject(ReferenceUpdateDAO dao) {
         this.dao = dao;
