@@ -227,10 +227,11 @@ public class ReferenceUpdatePipeline{
                         pubmedIdList.add(x.getAccId());
                     }
                 }
-            }else{
-                if((refObj.getReferenceType().equalsIgnoreCase("journal article")) &&
-                        ((refObj.getRefAbstract()!=null) && (!(refObj.getRefAbstract().equalsIgnoreCase("NULL"))))
-                        && ((refObj.getTitle()!=null) && (!(refObj.getTitle().equalsIgnoreCase("NULL"))))){
+            } else {
+                if( Utils.stringsAreEqual(refObj.getReferenceType(), "JOURNAL ARTICLE")
+                        && !Utils.NVL(refObj.getRefAbstract(), "NULL").equals("NULL")
+                        && !Utils.NVL(refObj.getTitle(), "NULL").equals("NULL") ) {
+
                     int pubmedIdInserted = refUpdObj.getPubmedAssocInDB(refObj, getTermSearchUrl(), getAttR());
                     if(pubmedIdInserted!=0){
                         countPubmedIdsInserted++;

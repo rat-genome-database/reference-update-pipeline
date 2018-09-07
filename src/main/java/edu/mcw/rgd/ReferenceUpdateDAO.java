@@ -48,10 +48,8 @@ public class ReferenceUpdateDAO {
      */
     public List<XdbId> getXdbIdsByRgdId(int xdbKey, int rgdId) throws Exception {
         List<XdbId> listXdbs = xdbIdDao.getXdbIdsByRgdId(xdbKey, rgdId);
-        if(listXdbs!=null && listXdbs.size()>0){
+        if( listXdbs.size()>0 ) {
             return listXdbs;
-        }else if(listXdbs!=null && listXdbs.size()==0){
-            return null;
         }else{
             return null;
         }
