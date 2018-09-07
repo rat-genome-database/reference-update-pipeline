@@ -9,7 +9,7 @@
         <property name="eutils_rettype" value="medline"/>
         <property name="eUtils_retmode" value="xml"/>
         <property name="ncbiFetchUrl" value="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"/>
-        <property name="termSearchUrl" value="http://ontomate.rgd.mcw.edu/solr/select?q="/>
+        <property name="termSearchUrl" value="https://ontomate.rgd.mcw.edu/solr/select?q="/>
         <property name="attR" value="rows=10"/>
         <property name="eutilsBatchSize" value="100"/>
 
