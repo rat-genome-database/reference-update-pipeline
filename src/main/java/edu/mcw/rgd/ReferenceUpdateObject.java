@@ -88,11 +88,7 @@ public class ReferenceUpdateObject{
 
     private String getSynonymAPI(String termSearchUrl, String attR, Reference objectTobeUpdated) throws Exception {
 
-        //String term2findSyn = term2findSyn4.replaceAll("[^a-zA-Z]+"," ");
         String term2findSyn = "";
-        /*if(objectTobeUpdated.getPublication()!=null && objectTobeUpdated.getPublication().length()>0){
-            term2findSyn+="("+objectTobeUpdated.getPublication().replaceAll("-", " ")+")";
-        }*/
 
         List<String> symbolsToEscapeList = getSymbolsToEscapeList();
         if(objectTobeUpdated.getTitle()!=null && objectTobeUpdated.getTitle().length()>0){
@@ -143,9 +139,9 @@ public class ReferenceUpdateObject{
             return builder.toString();
 
         }catch (MalformedURLException e) {
-            throw new RuntimeException("Url of the API is not correct: " + e);
+            throw new RuntimeException("Url of the API is not correct ("+termSearchUrl+") :" + e);
         }catch (IOException e) {
-            throw new RuntimeException("Cannot communicate with the server: "+e);
+            throw new RuntimeException("Cannot communicate with the server ("+termSearchUrl+") :" + e);
         }
 
     }
