@@ -1,0 +1,30 @@
+<!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN//EN" "http://www.springframework.org/dtd/spring-beans.dtd">
+
+<beans>
+    <bean id="referenceUpdatePipeline" class="edu.mcw.rgd.ReferenceUpdatePipeline">
+        <property name="version" value="ReferenceUpdate pipeline v 1.4.5 (Sep 7, 2018)"/>
+        <property name="eUtils_db" value="Pubmed"/>
+        <property name="eUtils_tool" value="RatGenomeDatabase"/>
+        <property name="eUtils_email" value="mtutaj@mcw.edu"/>
+        <property name="eutils_rettype" value="medline"/>
+        <property name="eUtils_retmode" value="xml"/>
+        <property name="ncbiFetchUrl" value="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"/>
+        <property name="termSearchUrl" value="http://ontomate.rgd.mcw.edu/solr/select?q="/>
+        <property name="attR" value="rows=10"/>
+        <property name="eutilsBatchSize" value="100"/>
+
+        <property name="pubmedImportUrl" value="/rgdweb/pubmed/importReferences.html?pmid_list=" />
+        <property name="pubmedImportDepthInDays" value="30" />
+        <property name="pubmedServices">
+            <map>
+                <entry key="travis" value="http://dev.rgd.mcw.edu" />
+                <entry key="reed" value="http://pipelines.rgd.mcw.edu" />
+                <entry key="rgd-c6vhv52" value="http://dev.rgd.mcw.edu" />
+            </map>
+        </property>
+        <property name="pubmedImportBatchSize" value="30" />
+    </bean>
+
+</beans>
+
+
