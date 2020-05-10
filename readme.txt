@@ -1,3 +1,6 @@
+May 10, 2020
+  updated jar dependencies
+
 ver 1.4.5 (Sep 7, 2018)
   updated build files to GRADLE from ANT
 
