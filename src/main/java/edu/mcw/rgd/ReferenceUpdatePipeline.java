@@ -5,7 +5,8 @@ import edu.mcw.rgd.process.FileDownloader;
 import edu.mcw.rgd.process.NcbiEutils;
 import edu.mcw.rgd.process.Utils;
 import edu.mcw.rgd.xml.XomAnalyzer;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.beans.factory.xml.XmlBeanDefinitionReader;
 import org.springframework.core.io.FileSystemResource;
@@ -41,8 +42,8 @@ public class ReferenceUpdatePipeline{
     private Map<String,String> pubmedServices;
     private int pubmedImportBatchSize;
 
-    private static final Logger logStatus = Logger.getLogger("log_status");
-    private static final Logger logImported = Logger.getLogger("importedReferences");
+    private static final Logger logStatus = LogManager.getLogger("status");
+    private static final Logger logImported = LogManager.getLogger("imported_references");
 
     public static void main(String args[]) throws Exception{
 

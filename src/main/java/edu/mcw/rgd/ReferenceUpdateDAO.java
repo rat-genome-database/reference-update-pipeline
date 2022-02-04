@@ -7,7 +7,8 @@ import edu.mcw.rgd.datamodel.Author;
 import edu.mcw.rgd.datamodel.Reference;
 import edu.mcw.rgd.datamodel.XdbId;
 import edu.mcw.rgd.process.Utils;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -15,10 +16,8 @@ import java.sql.ResultSet;
 import java.util.*;
 
 /**
- * Created by IntelliJ IDEA.
- * User: pjayaraman
- * Date: 2/27/12
- * Time: 12:37 PM
+ * @author pjayaraman
+ * @since 2/27/12
  * wrapper for *all* dao code
  */
 public class ReferenceUpdateDAO {
@@ -102,7 +101,7 @@ public class ReferenceUpdateDAO {
         String sql2 = "UPDATE rgd_ref_author SET author_key=? WHERE author_key=?";
         String sql3 = "DELETE FROM authors WHERE author_key=?";
 
-        Logger log = Logger.getLogger("deletedAuthors");
+        Logger log = LogManager.getLogger("deleted_authors");
         Connection conn = refDao.getConnection();
         PreparedStatement psDupAuthors = conn.prepareStatement(sql1);
         PreparedStatement psUpdateAssocs = conn.prepareStatement(sql2);
