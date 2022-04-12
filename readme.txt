@@ -1,3 +1,6 @@
+Apr 12, 2022
+  fixed log4j2.xml
+
 Feb 04, 2022
   updated log4j to avoid zero-day exploit
 
