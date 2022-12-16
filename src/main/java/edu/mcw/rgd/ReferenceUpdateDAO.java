@@ -3,6 +3,7 @@ package edu.mcw.rgd;
 import edu.mcw.rgd.dao.impl.AssociationDAO;
 import edu.mcw.rgd.dao.impl.ReferenceDAO;
 import edu.mcw.rgd.dao.impl.XdbIdDAO;
+import edu.mcw.rgd.dao.spring.IntListQuery;
 import edu.mcw.rgd.datamodel.Author;
 import edu.mcw.rgd.datamodel.Reference;
 import edu.mcw.rgd.datamodel.XdbId;
@@ -32,7 +33,7 @@ public class ReferenceUpdateDAO {
     }
 
     public Reference getReference(int rgdId) throws Exception{
-        return refDao.getReference(rgdId);
+        return refDao.getReferenceByRgdId(rgdId);
     }
 
     public void updateReferenceField(Reference ref) throws Exception {
@@ -86,7 +87,7 @@ public class ReferenceUpdateDAO {
         return rowsInserted;
     }
 
-    public int insertPmidRefRgdAssoc(XdbId xdbObj) throws Exception{
+    public int insertXdbId(XdbId xdbObj) throws Exception{
         return xdbIdDao.insertXdb(xdbObj);
     }
 
@@ -143,5 +144,23 @@ public class ReferenceUpdateDAO {
         System.out.println("DUPLICATE AUTHORS DELETED: "+dupAuthorsDeleted);
         System.out.println("AUTHOR-TO-REF ASSOCS UPDATED:"+author2RefAssocUpdated);
         System.out.println("MULTIS:"+multis);
+    }
+
+    public int getLastReferenceWithPmcId() throws Exception {
+        String sql = "SELECT MAX(r.rgd_id) FROM references r,rgd_acc_xdb x where r.rgd_id=x.rgd_id and xdb_key=146";
+        return xdbIdDao.getCount(sql);
+    }
+
+    public List<Integer> getActiveReferenceRgdIds(int minRgdId) throws Exception {
+        String sql = "SELECT x.rgd_id FROM references r,rgd_acc_xdb x,rgd_ids i WHERE r.rgd_id=x.rgd_id AND x.rgd_id=i.rgd_id AND object_status='ACTIVE' AND x.rgd_id>? ORDER BY x.rgd_id";
+        return IntListQuery.execute(xdbIdDao, sql, minRgdId);
+    }
+
+    public String getPubMedIdForRefRgdId(int refRgdId) throws Exception {
+        List<XdbId> xdbIds = xdbIdDao.getPubmedIdsByRefRgdId(refRgdId);
+        if( xdbIds.isEmpty() ) {
+            return null;
+        }
+        return xdbIds.get(0).getAccId();
     }
 }

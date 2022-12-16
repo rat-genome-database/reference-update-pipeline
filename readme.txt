@@ -1,3 +1,6 @@
+Dec 15, 2022
+  added PMC crawler: import PMC ids for existing references with PMID ids
+
 Apr 12, 2022
   fixed log4j2.xml
 

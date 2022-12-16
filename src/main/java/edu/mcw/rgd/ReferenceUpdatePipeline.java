@@ -61,6 +61,7 @@ public class ReferenceUpdatePipeline{
         boolean importMissingReferences = false;
         boolean refreshReferences = false;
         boolean fixDuplicateAuthors = false;
+        boolean importPmcIds = false;
         for( String arg: args ) {
             switch(arg) {
                 case "-?":
@@ -83,6 +84,10 @@ public class ReferenceUpdatePipeline{
                 case "-fixDuplicateAuthors":
                     fixDuplicateAuthors = true;
                     break;
+
+                case "-importPmcIds":
+                    importPmcIds = true;
+                    break;
             }
         }
 
@@ -91,7 +96,7 @@ public class ReferenceUpdatePipeline{
             try {
                 pipeline.run();
             } catch (Exception e) {
-                e.printStackTrace();
+                Utils.printStackTrace(e, logStatus);
             }
         }
 
@@ -101,7 +106,7 @@ public class ReferenceUpdatePipeline{
             try {
                 pipeline.importReferences();
             } catch(Exception e) {
-                e.printStackTrace();
+                Utils.printStackTrace(e, logStatus);
             }
         }
 
@@ -111,7 +116,7 @@ public class ReferenceUpdatePipeline{
             try {
                 pipeline.refreshReferences();
             } catch(Exception e) {
-                e.printStackTrace();
+                Utils.printStackTrace(e, logStatus);
             }
         }
 
@@ -120,7 +125,16 @@ public class ReferenceUpdatePipeline{
             try {
                 pipeline.fixDuplicateAuthors();
             } catch(Exception e) {
-                e.printStackTrace();
+                Utils.printStackTrace(e, logStatus);
+            }
+        }
+
+
+        if( importPmcIds ) {
+            try {
+                ImportPmcIds.run(pipeline.dao);
+            } catch(Exception e) {
+                Utils.printStackTrace(e, logStatus);
             }
         }
 
@@ -138,6 +152,7 @@ public class ReferenceUpdatePipeline{
         System.out.println("   -importMissingReferences");
         System.out.println("   -refreshReferences");
         System.out.println("   -fixDuplicateAuthors");
+        System.out.println("   -importPmcIds");
         System.exit(0);
     }
 

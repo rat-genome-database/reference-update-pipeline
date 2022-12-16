@@ -77,7 +77,7 @@ public class ReferenceUpdateObject{
             +newXdbObj.getCreationDate()+"||"+newXdbObj.getNotes()+"||"+newXdbObj.getLinkText()+"||"+newXdbObj.getSrcPipeline()+"||"
             +newXdbObj.getModificationDate());
 
-            return dao.insertPmidRefRgdAssoc(newXdbObj);
+            return dao.insertXdbId(newXdbObj);
         }else{
             return 0;
         }
