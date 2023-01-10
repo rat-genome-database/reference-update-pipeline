@@ -85,7 +85,7 @@ public class ReferenceUpdatePipeline{
                     fixDuplicateAuthors = true;
                     break;
 
-                case "-importPmcIds":
+                case "--importPmcIds":
                     importPmcIds = true;
                     break;
             }
@@ -152,7 +152,7 @@ public class ReferenceUpdatePipeline{
         System.out.println("   -importMissingReferences");
         System.out.println("   -refreshReferences");
         System.out.println("   -fixDuplicateAuthors");
-        System.out.println("   -importPmcIds");
+        System.out.println("   --importPmcIds");
         System.exit(0);
     }
 

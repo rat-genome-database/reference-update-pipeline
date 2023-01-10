@@ -12,4 +12,4 @@ CMDLINE_OPTIONS="-importMissingReferences -fixDuplicateReferences"
 cd $APP_HOME
 ./_run.sh $CMDLINE_OPTIONS > $APP_HOME/annot_status.log 2>&1
 
-mailx -s "[$SERVER] Pipeline to update RGD Reference data ran" RGD.Developers@mcw.edu < $APP_HOME/annot_status.log
+mailx -s "[$SERVER] Pipeline to update RGD Reference data ran" RGD.devops@mcw.edu < $APP_HOME/annot_status.log

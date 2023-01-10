@@ -2,20 +2,24 @@ package edu.mcw.rgd;
 
 import edu.mcw.rgd.datamodel.XdbId;
 import edu.mcw.rgd.process.FileDownloader;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 
 public class ImportPmcIds {
 
+    private static final Logger log = LogManager.getLogger("pmc_ids");
+
     public static void run(ReferenceUpdateDAO dao) throws Exception {
 
         int minRgdId = dao.getLastReferenceWithPmcId();
 
-        System.out.println("STARTING REF_RGD_ID: "+minRgdId);
+        log.info("STARTING REF_RGD_ID: "+minRgdId);
 
         List<Integer> refRgdIdsToProcess = dao.getActiveReferenceRgdIds(minRgdId);
 
-        System.out.println("REFS TO PROCESS: "+refRgdIdsToProcess.size());
+        log.info("REFS TO PROCESS: "+refRgdIdsToProcess.size());
 
         int referencesProcessed = 0;
         int pmidsProcessed = 0;
@@ -44,13 +48,13 @@ public class ImportPmcIds {
                 pmcIdsInserted++;
             }
 
-            System.out.println(referencesProcessed+".    pmids = "+pmidsProcessed+",  pmc ids = "+pmcIdsInserted);
-            Thread.sleep(500);
+            log.debug(referencesProcessed+".    pmids = "+pmidsProcessed+",  pmc ids = "+pmcIdsInserted);
+            Thread.sleep(450);
         }
 
-        System.out.println("REFERENCES PROCESSED: "+referencesProcessed);
-        System.out.println("PUBMED IDS PROCESSED: "+pmidsProcessed);
-        System.out.println("PMC IDS INSERTED: "+pmcIdsInserted);
+        log.info("REFERENCES PROCESSED: "+referencesProcessed);
+        log.info("PUBMED IDS PROCESSED: "+pmidsProcessed);
+        log.info("PMC IDS INSERTED: "+pmcIdsInserted);
     }
 
     static String getPmcId(String pmid) throws Exception {
@@ -79,7 +83,7 @@ public class ImportPmcIds {
             String pmcId = xml.substring(idPos, idEnd);
             return "PMC"+pmcId;
         }
-        System.out.println("unexpected");
+        log.warn("unexpected code point");
         return null;
     }
 }
