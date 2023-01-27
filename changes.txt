@@ -1,2 +1,5 @@
+Jan 27, 2023
+  upgraded commons-dbcp from ver 1 to ver 2
+
 Jan 10, 2023
   upgraded build script to the most recent gradle syntax
