@@ -3,6 +3,7 @@ package edu.mcw.rgd;
 
 import edu.mcw.rgd.datamodel.Author;
 import edu.mcw.rgd.datamodel.Reference;
+import edu.mcw.rgd.process.CounterPool;
 import edu.mcw.rgd.xml.XomAnalyzer;
 import nu.xom.Element;
 import nu.xom.Elements;
@@ -18,7 +19,6 @@ import java.util.*;
  * Created by IntelliJ IDEA.
  * User: pjayaraman
  * Date: 2/27/12
- * Time: 2:28 PM
  */
 public class ReferenceXOMAnalyzer extends XomAnalyzer {
 
@@ -26,12 +26,14 @@ public class ReferenceXOMAnalyzer extends XomAnalyzer {
     private static final Logger logUpdates = LogManager.getLogger("updates");
 
     private Map<String, Integer> mapPubmedIdToRefRgdId;
+    private CounterPool counters;
 
     ReferenceUpdateDAO dao = new ReferenceUpdateDAO();
 
-    public ReferenceXOMAnalyzer(Map<String, Integer> mapPubmedIdToRefRgdId){
+    public ReferenceXOMAnalyzer(Map<String, Integer> mapPubmedIdToRefRgdId, CounterPool counters){
 
         this.mapPubmedIdToRefRgdId = mapPubmedIdToRefRgdId;
+        this.counters = counters;
     }
 
     public void initRecord(String name){
@@ -73,7 +75,7 @@ public class ReferenceXOMAnalyzer extends XomAnalyzer {
                             //logUpdates.debug("here is the pubmed ID:\t" + pubmedID);
 
                             //increment count of downloaded pubmed ids
-                            ReferenceUpdateGlobalCounters.getInstance().incrementDownloadedPubmedIdsCount();
+                            counters.increment("pubmedIdsDownloaded");
                         }
                         else if(medlineEle.getLocalName().equals("Article")){
                             //String publicationType = medlineEle.getAttributeValue("PubModel").toString();
@@ -268,8 +270,7 @@ public class ReferenceXOMAnalyzer extends XomAnalyzer {
                         if(artPubmed.getAttributeValue("IdType").equals("doi")){
                             doiValue = artPubmed.getValue();
 
-                            //update count of dois
-                            ReferenceUpdateGlobalCounters.getInstance().incrementDoiCount();
+                            counters.increment("doiCount");
                         }
                     }
                 }

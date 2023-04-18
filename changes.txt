@@ -1,3 +1,6 @@
+Apr 18, 2023
+  refactored to simplify code
+
 Jan 27, 2023
   upgraded commons-dbcp from ver 1 to ver 2
 

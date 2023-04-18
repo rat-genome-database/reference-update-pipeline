@@ -1,6 +1,7 @@
 package edu.mcw.rgd;
 import edu.mcw.rgd.datamodel.Reference;
 import edu.mcw.rgd.datamodel.XdbId;
+import edu.mcw.rgd.process.CounterPool;
 import edu.mcw.rgd.process.FileDownloader;
 import edu.mcw.rgd.process.NcbiEutils;
 import edu.mcw.rgd.process.Utils;
@@ -219,18 +220,17 @@ public class ReferenceUpdatePipeline{
         ReferenceUpdateObject refUpdObj = new ReferenceUpdateObject(dao);
 
         Map<String,Integer> pubmedIdToRefRgdIdMap = new HashMap<>();
+        CounterPool counters = new CounterPool();
 
         int countPubmedIdsInserted=0;
 
         for(Reference refObj:refList){
-            //get total count of references
-            ReferenceUpdateGlobalCounters.getInstance().incrementRefCount();
+            counters.increment("refCount");
             List<XdbId> xdbObjList = dao.getXdbIdsByRgdId(XdbId.XDB_KEY_PUBMED, refObj.getRgdId());
 
             if(xdbObjList!=null){
                 for(XdbId x : xdbObjList){
-                    //get count of pubmed Ids
-                    ReferenceUpdateGlobalCounters.getInstance().incrementPubmedCount();
+                    counters.increment("pubmedCount");
                     Integer refRgdId = pubmedIdToRefRgdIdMap.get(x.getAccId());
                     if( refRgdId!=null && refRgdId!=x.getRgdId() ) {
                         moreThanOnePubmedCount++;
@@ -262,19 +262,19 @@ public class ReferenceUpdatePipeline{
         msg = "Count of objects which have more than one Pubmed ID for every ReferenceObject: " + moreThanOnePubmedCount;
         logMsg(msg);
 
-        downloadAndProcessReferences(pubmedIdList, pubmedIdToRefRgdIdMap);
+        downloadAndProcessReferences(pubmedIdList, pubmedIdToRefRgdIdMap, counters);
 
-        msg = "number of references: " + ReferenceUpdateGlobalCounters.getInstance().getRefCount();
+        msg = "number of references: " + counters.get("refCount");
         logMsg(msg);
 
-        msg = "number of PubmedIds: " + ReferenceUpdateGlobalCounters.getInstance().getPubmedCount();
+        msg = "number of PubmedIds: " + counters.get("pubmedCount");
         logMsg(msg);
 
-        msg = "number of PubmedReferencesDownloaded: " + ReferenceUpdateGlobalCounters.getInstance().getPubmedIdsDownloadedCount();
+        msg = "number of PubmedReferencesDownloaded: " + counters.get("pubmedIdsDownloaded");
         msg += " (details in updates.log)";
         logMsg(msg);
 
-        msg = "number of DOIs: " + ReferenceUpdateGlobalCounters.getInstance().getDoiCount();
+        msg = "number of DOIs: " + counters.get("doiCount");
         logMsg(msg);
     }
 
@@ -283,7 +283,7 @@ public class ReferenceUpdatePipeline{
         logStatus.info(msg);
     }
 
-    void downloadAndProcessReferences(List<String> pubmedIdList, Map<String,Integer> pubmedIdToRefRgdIdMap) throws Exception {
+    void downloadAndProcessReferences(List<String> pubmedIdList, Map<String,Integer> pubmedIdToRefRgdIdMap, CounterPool counters) throws Exception {
 
         for(int x=0; x<pubmedIdList.size(); x+=getEutilsBatchSize()){
 
@@ -296,18 +296,18 @@ public class ReferenceUpdatePipeline{
 
             File xmlFile = runReferenceUpdatePipeline(xdbListSubset);
             if(xmlFile != null){
-                parseXMLfile(xmlFile, pubmedIdToRefRgdIdMap);
+                parseXMLfile(xmlFile, pubmedIdToRefRgdIdMap, counters);
             }
 
             Thread.sleep(5000); // sleep 5s between consequitive requests
         }
     }
 
-    private void parseXMLfile(File xmlFile, Map<String, Integer> pubmedIdToRefRgdIdMap) throws Exception {
+    private void parseXMLfile(File xmlFile, Map<String, Integer> pubmedIdToRefRgdIdMap, CounterPool counters) throws Exception {
 
         FileReader reader = new FileReader(xmlFile);
         //creating new instance of the XOMAnalyser parser that does the parsing of each node(corresponding to each rs ID) in the xml file
-        ReferenceXOMAnalyzer xomFile = new ReferenceXOMAnalyzer(pubmedIdToRefRgdIdMap);
+        ReferenceXOMAnalyzer xomFile = new ReferenceXOMAnalyzer(pubmedIdToRefRgdIdMap, counters);
         //starting process for each "node" in the chromosome xml file.
         xomFile.parse(reader);
 
