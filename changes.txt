@@ -1,3 +1,6 @@
+Jul 01, 2024
+  updated to java 17
+
 Apr 18, 2023
   refactored to simplify code
 
