@@ -1,3 +1,6 @@
+Oct 18, 2024
+  added module to import references from PMIDs found in HTPDATASET file submitted to the Alliance
+
 Jul 01, 2024
   updated to java 17
 

@@ -15,6 +15,7 @@ import org.springframework.core.io.FileSystemResource;
 import java.io.File;
 import java.io.FileReader;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 
 /*
@@ -43,6 +44,8 @@ public class ReferenceUpdatePipeline{
     private Map<String,String> pubmedServices;
     private int pubmedImportBatchSize;
 
+    private String htpFileName;
+
     private static final Logger logStatus = LogManager.getLogger("status");
     private static final Logger logImported = LogManager.getLogger("imported_references");
 
@@ -63,80 +66,55 @@ public class ReferenceUpdatePipeline{
         boolean refreshReferences = false;
         boolean fixDuplicateAuthors = false;
         boolean importPmcIds = false;
+        boolean importReferencesForAllianceHtp = false;
+
         for( String arg: args ) {
-            switch(arg) {
-                case "-?":
-                case "-help":
-                    pipeline.usage();
-                    break;
-
-                case "-fixDuplicateReferences":
-                    fixDuplicateReferences = true;
-                    break;
-
-                case "-importMissingReferences":
-                    importMissingReferences = true;
-                    break;
-
-                case "-refreshReferences":
-                    refreshReferences = true;
-                    break;
-
-                case "-fixDuplicateAuthors":
-                    fixDuplicateAuthors = true;
-                    break;
-
-                case "--importPmcIds":
-                    importPmcIds = true;
-                    break;
+            switch (arg) {
+                case "-?", "-help" -> pipeline.usage();
+                case "-fixDuplicateReferences" -> fixDuplicateReferences = true;
+                case "-importMissingReferences" -> importMissingReferences = true;
+                case "-refreshReferences" -> refreshReferences = true;
+                case "-fixDuplicateAuthors" -> fixDuplicateAuthors = true;
+                case "--importPmcIds" -> importPmcIds = true;
+                case "--importReferencesForAllianceHtp" -> importReferencesForAllianceHtp = true;
             }
         }
 
-        // run module 1
-        if( fixDuplicateReferences ) {
-            try {
+        try {
+
+            // run module 1
+            if( fixDuplicateReferences ) {
                 pipeline.run();
-            } catch (Exception e) {
-                Utils.printStackTrace(e, logStatus);
             }
-        }
 
-        // run module 2
-        if( importMissingReferences ) {
-            // import references (if needed) for PMID ids that were created in RGD in the last few days
-            try {
+            // run module 2
+            if( importMissingReferences ) {
+                // import references (if needed) for PMID ids that were created in RGD in the last few days
                 pipeline.importReferences();
-            } catch(Exception e) {
-                Utils.printStackTrace(e, logStatus);
             }
-        }
 
-        // run module 3
-        if( refreshReferences ) {
-            // refresh all active references in RGD by comparing content in RGD with content at PubMed
-            try {
+            // run module 3
+            if( refreshReferences ) {
+                // refresh all active references in RGD by comparing content in RGD with content at PubMed
                 pipeline.refreshReferences();
-            } catch(Exception e) {
-                Utils.printStackTrace(e, logStatus);
             }
-        }
 
-        // run module 4
-        if( fixDuplicateAuthors ) {
-            try {
+            // run module 4
+            if( fixDuplicateAuthors ) {
                 pipeline.fixDuplicateAuthors();
-            } catch(Exception e) {
-                Utils.printStackTrace(e, logStatus);
             }
-        }
 
-
-        if( importPmcIds ) {
-            try {
+            if( importPmcIds ) {
                 ImportPmcIds.run(pipeline.dao);
-            } catch(Exception e) {
-                Utils.printStackTrace(e, logStatus);
             }
+
+            if( importReferencesForAllianceHtp ) {
+                ImportReferencesForHtpAlliance module = new ImportReferencesForHtpAlliance();
+                module.run( pipeline.getHtpFileName(), pipeline.getFullPubMedImportUrl() );
+            }
+
+        } catch (Exception e) {
+            Utils.printStackTrace(e, logStatus);
         }
 
         pipeline.logMsg("=== PIPELINE FINISHED === elapsed "+Utils.formatElapsedTime(time0, System.currentTimeMillis()));
@@ -154,6 +132,7 @@ public class ReferenceUpdatePipeline{
         System.out.println("   -refreshReferences");
         System.out.println("   -fixDuplicateAuthors");
         System.out.println("   --importPmcIds");
+        System.out.println("   --importReferencesForAllianceHtp");
         System.exit(0);
     }
 
@@ -323,10 +302,7 @@ public class ReferenceUpdatePipeline{
         logMsg("=== IMPORTING MISSING REFERENCES for PubMed ids created within last " + getPubmedImportDepthInDays() + " days");
         long time0 = System.currentTimeMillis();
 
-        // get server name for pubmed service
-        String hostName = InetAddress.getLocalHost().getHostName().toLowerCase(); // f.e. kirwan.rgd.mcw.edu
-        String serverName = hostName.split("[\\.]")[0];
-        String importPubmedUrl = getPubmedServices().get(serverName) + getPubmedImportUrl();
+        String importPubmedUrl = getFullPubMedImportUrl();
         logMsg("  import pubmed url: "+importPubmedUrl);
 
         // create cutoff date for PUBMED ids created recently
@@ -365,10 +341,7 @@ public class ReferenceUpdatePipeline{
         logMsg("=== REFRESHING REFERENCES in RGD against PubMed");
         long time0 = System.currentTimeMillis();
 
-        // get server name for pubmed service
-        String hostName = InetAddress.getLocalHost().getHostName().toLowerCase(); // f.e. kirwan.rgd.mcw.edu
-        String serverName = hostName.split("[\\.]")[0];
-        String importPubmedUrl = getPubmedServices().get(serverName) + getPubmedImportUrl();
+        String importPubmedUrl = getFullPubMedImportUrl();
         logMsg("  import pubmed url: "+importPubmedUrl);
 
         List<String> pubMedIds = dao.getPubmedIdsForActiveReferences();
@@ -426,6 +399,14 @@ public class ReferenceUpdatePipeline{
         logMsg("---FIX DUPLICATE AUTHORS: START");
         dao.fixDuplicateAuthors();
         logMsg("---FIX DUPLICATE AUTHORS: END");
+    }
+
+    public String getFullPubMedImportUrl() throws UnknownHostException {
+
+        String hostName = InetAddress.getLocalHost().getHostName().toLowerCase(); // f.e. travis.rgd.mcw.edu
+        String serverName = hostName.split("[\\.]")[0];
+        String importPubmedUrl = getPubmedServices().get(serverName) + getPubmedImportUrl();
+        return importPubmedUrl;
     }
 
     public void seteUtils_db(String eUtils_db) {
@@ -539,6 +520,14 @@ public class ReferenceUpdatePipeline{
 
     public int getPubmedImportBatchSize() {
         return pubmedImportBatchSize;
+    }
+
+    public String getHtpFileName() {
+        return htpFileName;
+    }
+
+    public void setHtpFileName(String htpFileName) {
+        this.htpFileName = htpFileName;
     }
 }
 

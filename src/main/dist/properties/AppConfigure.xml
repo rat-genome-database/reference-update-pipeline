@@ -2,7 +2,7 @@
 
 <beans>
     <bean id="referenceUpdatePipeline" class="edu.mcw.rgd.ReferenceUpdatePipeline">
-        <property name="version" value="ReferenceUpdate pipeline  -- build Jul 1, 2024"/>
+        <property name="version" value="ReferenceUpdate pipeline  -- build Oct 18, 2024"/>
         <property name="eUtils_db" value="Pubmed"/>
         <property name="eUtils_tool" value="RatGenomeDatabase"/>
         <property name="eUtils_email" value="mtutaj@mcw.edu"/>
@@ -12,6 +12,7 @@
         <property name="termSearchUrl" value="https://ontomate.rgd.mcw.edu/solr/select?q="/>
         <property name="attR" value="rows=10"/>
         <property name="eutilsBatchSize" value="100"/>
+        <property name="htpFileName" value="/home/rgddata/pipelines/ftp-file-extracts-pipeline/data/agr/HTPDATASET_RGD.json" />
 
         <property name="pubmedImportUrl" value="/rgdweb/pubmed/importReferences.html?pmid_list=" />
         <property name="pubmedImportDepthInDays" value="30" />

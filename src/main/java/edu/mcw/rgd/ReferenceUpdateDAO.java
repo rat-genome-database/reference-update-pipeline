@@ -163,4 +163,9 @@ public class ReferenceUpdateDAO {
         }
         return xdbIds.get(0).getAccId();
     }
+
+    public int getReferenceRgdIdByPubmedId(String pmid) throws Exception {
+        return refDao.getReferenceRgdIdByPubmedId(pmid);
+    }
+
 }
