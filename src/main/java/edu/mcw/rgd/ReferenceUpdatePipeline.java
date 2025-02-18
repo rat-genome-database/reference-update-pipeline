@@ -115,6 +115,7 @@ public class ReferenceUpdatePipeline{
 
         } catch (Exception e) {
             Utils.printStackTrace(e, logStatus);
+            throw e;
         }
 
         pipeline.logMsg("=== PIPELINE FINISHED === elapsed "+Utils.formatElapsedTime(time0, System.currentTimeMillis()));

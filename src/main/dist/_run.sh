@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 . /etc/profile
 
-APPNAME=ReferenceUpdatePipeline
+APPNAME="reference-update-pipeline"
 APPDIR=/home/rgddata/pipelines/$APPNAME
 
 cd $APPDIR

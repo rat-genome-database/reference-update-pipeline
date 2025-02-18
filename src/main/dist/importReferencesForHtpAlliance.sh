@@ -1,7 +1,7 @@
 #
 . /etc/profile
 
-APP_HOME=/home/rgddata/pipelines/ReferenceUpdatePipeline
+APP_HOME=/home/rgddata/pipelines/reference-update-pipeline
 SERVER=`hostname -s | tr '[a-z]' '[A-Z]'`
 
 #
