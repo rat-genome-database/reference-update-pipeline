@@ -55,6 +55,7 @@ public class ImportPmcIds {
         log.info("REFERENCES PROCESSED: "+referencesProcessed);
         log.info("PUBMED IDS PROCESSED: "+pmidsProcessed);
         log.info("PMC IDS INSERTED: "+pmcIdsInserted);
+        log.info("===");
     }
 
     static String getPmcId(String pmid) throws Exception {

@@ -152,7 +152,11 @@ public class ReferenceUpdateDAO {
     }
 
     public List<Integer> getActiveReferenceRgdIds(int minRgdId) throws Exception {
-        String sql = "SELECT x.rgd_id FROM references r,rgd_acc_xdb x,rgd_ids i WHERE r.rgd_id=x.rgd_id AND x.rgd_id=i.rgd_id AND object_status='ACTIVE' AND x.rgd_id>? ORDER BY x.rgd_id";
+        String sql = """
+            SELECT x.rgd_id FROM references r,rgd_acc_xdb x,rgd_ids i
+            WHERE r.rgd_id=x.rgd_id AND x.rgd_id=i.rgd_id AND object_status='ACTIVE' AND x.rgd_id>?
+            ORDER BY x.rgd_id
+            """;
         return IntListQuery.execute(xdbIdDao, sql, minRgdId);
     }
 
