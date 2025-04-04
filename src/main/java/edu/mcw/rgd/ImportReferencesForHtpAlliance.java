@@ -2,12 +2,16 @@ package edu.mcw.rgd;
 
 import edu.mcw.rgd.process.FileDownloader;
 import edu.mcw.rgd.process.Utils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.*;
 
 public class ImportReferencesForHtpAlliance {
+
+    private static final Logger logStatus = LogManager.getLogger("status");
 
     public static void main( String[] args ) throws IOException {
 
@@ -42,12 +46,12 @@ public class ImportReferencesForHtpAlliance {
         }
         in.close();
 
-        System.out.println("PubMed ids in HTPDATASET file: "+incomingPubMedIds.size());
+        logStatus.info("PubMed ids in HTPDATASET file: "+incomingPubMedIds.size());
 
         try {
             int referencesImported = importMissingReferences(incomingPubMedIds, pubmedImportUrl);
 
-            System.out.println("references has been imported: "+referencesImported);
+            logStatus.info("references has been imported: "+referencesImported);
         } catch( Exception e ) {
             e.printStackTrace();
         }
@@ -72,7 +76,7 @@ public class ImportReferencesForHtpAlliance {
 
                 fd.setExternalFile(pubmedImportUrl+pmid);
                 String response = fd.download();
-                System.out.println("response: "+response);
+                logStatus.debug("  response: "+response);
 
                 referencesImported++;
             }
