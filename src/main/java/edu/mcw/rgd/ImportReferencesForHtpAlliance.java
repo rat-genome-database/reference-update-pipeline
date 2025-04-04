@@ -53,7 +53,7 @@ public class ImportReferencesForHtpAlliance {
         }
     }
 
-    static int importMissingReferences( Set<String> pmidSet, String pubmedImportUrl ) throws Exception {
+    public static int importMissingReferences( Set<String> pmidSet, String pubmedImportUrl ) throws Exception {
 
         List<String> pmids = new ArrayList<>(pmidSet);
         Collections.shuffle(pmids);

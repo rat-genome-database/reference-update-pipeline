@@ -67,6 +67,7 @@ public class ReferenceUpdatePipeline{
         boolean fixDuplicateAuthors = false;
         boolean importPmcIds = false;
         boolean importReferencesForAllianceHtp = false;
+        boolean importReferencesForAlliance = false;
 
         for( String arg: args ) {
             switch (arg) {
@@ -77,6 +78,7 @@ public class ReferenceUpdatePipeline{
                 case "-fixDuplicateAuthors" -> fixDuplicateAuthors = true;
                 case "--importPmcIds" -> importPmcIds = true;
                 case "--importReferencesForAllianceHtp" -> importReferencesForAllianceHtp = true;
+                case "--importReferencesForAllianceHPO" -> importReferencesForAlliance = true;
             }
         }
 
@@ -113,6 +115,11 @@ public class ReferenceUpdatePipeline{
                 module.run( pipeline.getHtpFileName(), pipeline.getFullPubMedImportUrl() );
             }
 
+            if( importReferencesForAlliance ) {
+                ImportReferencesForAlliance module = (ImportReferencesForAlliance) bf.getBean("importReferencesForAlliance");
+                module.run();
+            }
+
         } catch (Exception e) {
             Utils.printStackTrace(e, logStatus);
             throw e;
@@ -123,17 +130,22 @@ public class ReferenceUpdatePipeline{
 
     void usage() {
         System.out.println(getVersion());
-        System.out.println("Usage: ");
-        System.out.println(" java -jar ReferenceUpdatePipeline.jar <options>");
-        System.out.println(" where options could be any combinations of the following:");
-        System.out.println("   -?     prints this message and quit the program");
-        System.out.println("   -help  prints this message and quit the program");
-        System.out.println("   -fixDuplicateReferences");
-        System.out.println("   -importMissingReferences");
-        System.out.println("   -refreshReferences");
-        System.out.println("   -fixDuplicateAuthors");
-        System.out.println("   --importPmcIds");
-        System.out.println("   --importReferencesForAllianceHtp");
+
+        String usage = """
+            Usage:
+             java -jar ReferenceUpdatePipeline.jar <options>
+               where options could be any combinations of the following:
+               -?     prints this message and quit the program
+               -help  prints this message and quit the program
+               -fixDuplicateReferences
+               -importMissingReferences
+               -refreshReferences
+               -fixDuplicateAuthors
+               --importPmcIds
+               --importReferencesForAllianceHtp
+               --importReferencesForAllianceHPO
+            """;
+        System.out.println(usage);
         System.exit(0);
     }
 

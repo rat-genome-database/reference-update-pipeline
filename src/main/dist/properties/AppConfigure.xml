@@ -2,7 +2,7 @@
 
 <beans>
     <bean id="referenceUpdatePipeline" class="edu.mcw.rgd.ReferenceUpdatePipeline">
-        <property name="version" value="ReferenceUpdate pipeline  -- build Mar 31, 2025"/>
+        <property name="version" value="ReferenceUpdate pipeline  -- build Apr 04, 2025"/>
         <property name="eUtils_db" value="Pubmed"/>
         <property name="eUtils_tool" value="RatGenomeDatabase"/>
         <property name="eUtils_email" value="mtutaj@mcw.edu"/>
@@ -20,12 +20,22 @@
             <map>
                 <entry key="travis" value="http://dev.rgd.mcw.edu" />
                 <entry key="reed" value="http://pipelines.rgd.mcw.edu" />
-                <entry key="rgd-c6vhv52" value="http://dev.rgd.mcw.edu" />
+                <entry key="default" value="http://dev.rgd.mcw.edu" />
             </map>
         </property>
         <property name="pubmedImportBatchSize" value="30" />
     </bean>
 
+    <bean id="importReferencesForAlliance" class="edu.mcw.rgd.ImportReferencesForAlliance">
+        <property name="importPubMedUrl" value="/rgdweb/pubmed/importReferences.html?pmid_list=" />
+        <property name="importPubmedToolHost">
+            <map>
+                <entry key="travis" value="https://dev.rgd.mcw.edu" />
+                <entry key="default" value="https://dev.rgd.mcw.edu" />
+                <entry key="reed" value="https://pipelines.rgd.mcw.edu" />
+            </map>
+        </property>
+    </bean>
 </beans>
 
 
