@@ -68,7 +68,10 @@ public class ImportReferencesForHtpAlliance {
 
         int referencesImported = 0;
 
+        int i = 0;
         for( String pmid: pmids ) {
+
+            i++;
 
             int refRgdId = dao.getReferenceRgdIdByPubmedId(pmid);
 
@@ -76,7 +79,7 @@ public class ImportReferencesForHtpAlliance {
 
                 fd.setExternalFile(pubmedImportUrl+pmid);
                 String response = fd.download();
-                logStatus.debug("  response: "+response);
+                logStatus.debug("  "+i+"/"+pmids.size()+".  response: "+response);
 
                 referencesImported++;
             }
