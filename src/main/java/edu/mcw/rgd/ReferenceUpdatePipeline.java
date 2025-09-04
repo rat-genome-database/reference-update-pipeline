@@ -3,7 +3,6 @@ import edu.mcw.rgd.datamodel.Reference;
 import edu.mcw.rgd.datamodel.XdbId;
 import edu.mcw.rgd.process.CounterPool;
 import edu.mcw.rgd.process.FileDownloader;
-import edu.mcw.rgd.process.NcbiEutils;
 import edu.mcw.rgd.process.Utils;
 import edu.mcw.rgd.xml.XomAnalyzer;
 import org.apache.logging.log4j.LogManager;
@@ -167,7 +166,6 @@ public class ReferenceUpdatePipeline{
     private File downloadAndValidateFile(List<String> pubmedIds) throws Exception{
         // download files through Ncbi eUtils
         String accIds= Utils.concatenate(pubmedIds, ",");
-        NcbiEutils ncbiObj = new NcbiEutils();
         String url = getNcbiFetchUrl() + "?db=" + geteUtils_db() +
                 "&tool=" + geteUtils_tool() +
                 "&rettype=" + getEutils_rettype() +
@@ -177,15 +175,32 @@ public class ReferenceUpdatePipeline{
         // 8698854,9674652,11152369,8662223,9468514,10920234,8698857,10613842,10330993,10331026,10331022,10331017,10331008,
         // 10331006,10331005,10330994,1033099");
 
-        File xmlfile = ncbiObj.downloadFile(url);
+        File xmlfile = downloadFile(url);
         //System.out.println("File downloaded is: " + xmlfile);
         if(xmlfile.exists()) {
             // the just-downloaded xml file could be partial
-            // if it is not partial, it is not a well formed xml, so it can't be processed
+            // if it is not partial, it is not a well-formed xml, so it can't be processed
             return verifyXmlFile(xmlfile) ? xmlfile : null;
         }else{
             return null;
         }
+    }
+
+    private File downloadFile( String url ) throws Exception {
+        // download the file to a tmp file
+        FileDownloader downloader = new FileDownloader();
+        downloader.setMaxRetryCount(2);
+        downloader.setDownloadRetryInterval(20); // set timeout between next download attempt to 20s
+
+        File tmpFile = File.createTempFile("tmp", "xml", new File("data"));
+        String localFile = tmpFile.getAbsolutePath();
+
+        downloader.setExternalFile(url);
+        downloader.setLocalFile(localFile);
+
+        downloader.download();
+
+        return tmpFile;
     }
 
     // return true if the xml file is a well-formed xml file

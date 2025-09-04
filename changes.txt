@@ -1,3 +1,6 @@
+Sep 04, 2025
+  removed custom dependency to EntrezGeneLoading.jar
+
 Jun 09, 2025
   updated dependencies
   
