@@ -2,7 +2,7 @@
 
 <beans>
     <bean id="referenceUpdatePipeline" class="edu.mcw.rgd.ReferenceUpdatePipeline">
-        <property name="version" value="ReferenceUpdate pipeline  -- build Sep 04, 2025"/>
+        <property name="version" value="reference-update-pipeline  -- build Apr 16, 2026"/>
         <property name="eUtils_db" value="Pubmed"/>
         <property name="eUtils_tool" value="RatGenomeDatabase"/>
         <property name="eUtils_email" value="mtutaj@mcw.edu"/>

@@ -3,6 +3,7 @@ import edu.mcw.rgd.datamodel.Reference;
 import edu.mcw.rgd.datamodel.XdbId;
 import edu.mcw.rgd.process.CounterPool;
 import edu.mcw.rgd.process.FileDownloader;
+import edu.mcw.rgd.process.MemoryMonitor;
 import edu.mcw.rgd.process.Utils;
 import edu.mcw.rgd.xml.XomAnalyzer;
 import org.apache.logging.log4j.LogManager;
@@ -59,6 +60,9 @@ public class ReferenceUpdatePipeline{
         }
 
         long time0 = System.currentTimeMillis();
+
+        MemoryMonitor memoryMonitor = new MemoryMonitor();
+        memoryMonitor.start();
 
         boolean fixDuplicateReferences = false;
         boolean importMissingReferences = false;
@@ -123,6 +127,9 @@ public class ReferenceUpdatePipeline{
             Utils.printStackTrace(e, logStatus);
             throw e;
         }
+
+        memoryMonitor.stop();
+        logStatus.info(memoryMonitor.getSummary());
 
         pipeline.logMsg("=== PIPELINE FINISHED === elapsed "+Utils.formatElapsedTime(time0, System.currentTimeMillis()));
     }
@@ -312,14 +319,12 @@ public class ReferenceUpdatePipeline{
 
     private void parseXMLfile(File xmlFile, Map<String, Integer> pubmedIdToRefRgdIdMap, CounterPool counters) throws Exception {
 
-        FileReader reader = new FileReader(xmlFile);
-        //creating new instance of the XOMAnalyser parser that does the parsing of each node(corresponding to each rs ID) in the xml file
-        ReferenceXOMAnalyzer xomFile = new ReferenceXOMAnalyzer(pubmedIdToRefRgdIdMap, counters);
-        //starting process for each "node" in the chromosome xml file.
-        xomFile.parse(reader);
-
-        reader.close();
-        xmlFile.delete();
+        try( FileReader reader = new FileReader(xmlFile) ) {
+            ReferenceXOMAnalyzer xomFile = new ReferenceXOMAnalyzer(pubmedIdToRefRgdIdMap, counters);
+            xomFile.parse(reader);
+        } finally {
+            xmlFile.delete();
+        }
     }
 
     /**
