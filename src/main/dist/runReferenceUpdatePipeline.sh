@@ -4,7 +4,7 @@
 
 APP_HOME=/home/rgddata/pipelines/reference-update-pipeline
 SERVER=`hostname -s | tr '[a-z]' '[A-Z]'`
-CMDLINE_OPTIONS="-importMissingReferences -fixDuplicateReferences"
+CMDLINE_OPTIONS="--importMissingReferences --fixDuplicateReferences"
 
 #
 # script body

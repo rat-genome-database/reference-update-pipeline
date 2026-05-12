@@ -1,3 +1,6 @@
+May 12, 2026
+  CLI: normalized all options to '--' prefix (except '-?'); fail loud on unknown options or when no work was requested; updated dependencies
+
 Apr 16, 2026
   added memory usage monitoring; fixed FileReader resource leak in parseXMLfile()
 

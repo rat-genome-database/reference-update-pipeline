@@ -74,15 +74,27 @@ public class ReferenceUpdatePipeline{
 
         for( String arg: args ) {
             switch (arg) {
-                case "-?", "-help" -> pipeline.usage();
-                case "-fixDuplicateReferences" -> fixDuplicateReferences = true;
-                case "-importMissingReferences" -> importMissingReferences = true;
-                case "-refreshReferences" -> refreshReferences = true;
-                case "-fixDuplicateAuthors" -> fixDuplicateAuthors = true;
+                case "-?", "--help" -> pipeline.usage();
+                case "--fixDuplicateReferences" -> fixDuplicateReferences = true;
+                case "--importMissingReferences" -> importMissingReferences = true;
+                case "--refreshReferences" -> refreshReferences = true;
+                case "--fixDuplicateAuthors" -> fixDuplicateAuthors = true;
                 case "--importPmcIds" -> importPmcIds = true;
                 case "--importReferencesForAllianceHtp" -> importReferencesForAllianceHtp = true;
                 case "--importReferencesForAllianceHPO" -> importReferencesForAlliance = true;
+                default -> {
+                    System.err.println("ERROR: unknown option '" + arg + "'");
+                    pipeline.usage();
+                }
             }
+        }
+
+        // refuse to run silently with no work scheduled
+        if( !(fixDuplicateReferences || importMissingReferences || refreshReferences
+                || fixDuplicateAuthors || importPmcIds
+                || importReferencesForAllianceHtp || importReferencesForAlliance) ) {
+            System.err.println("ERROR: no work options given");
+            pipeline.usage();
         }
 
         try {
@@ -141,12 +153,12 @@ public class ReferenceUpdatePipeline{
             Usage:
              java -jar ReferenceUpdatePipeline.jar <options>
                where options could be any combinations of the following:
-               -?     prints this message and quit the program
-               -help  prints this message and quit the program
-               -fixDuplicateReferences
-               -importMissingReferences
-               -refreshReferences
-               -fixDuplicateAuthors
+               -?      prints this message and quit the program
+               --help  prints this message and quit the program
+               --fixDuplicateReferences
+               --importMissingReferences
+               --refreshReferences
+               --fixDuplicateAuthors
                --importPmcIds
                --importReferencesForAllianceHtp
                --importReferencesForAllianceHPO
