@@ -1,6 +1,6 @@
 package edu.mcw.rgd;
 
-import edu.mcw.rgd.process.FileDownloader;
+import edu.mcw.rgd.process.FileDownloader2;
 import edu.mcw.rgd.process.Utils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -64,7 +64,7 @@ public class ImportReferencesForHtpAlliance {
 
         ReferenceUpdateDAO dao = new ReferenceUpdateDAO();
 
-        FileDownloader fd = new FileDownloader();
+        FileDownloader2 fd = new FileDownloader2();
 
         int referencesImported = 0;
 

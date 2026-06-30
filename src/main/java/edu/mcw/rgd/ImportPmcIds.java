@@ -1,7 +1,7 @@
 package edu.mcw.rgd;
 
 import edu.mcw.rgd.datamodel.XdbId;
-import edu.mcw.rgd.process.FileDownloader;
+import edu.mcw.rgd.process.FileDownloader2;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -61,7 +61,7 @@ public class ImportPmcIds {
     static String getPmcId(String pmid) throws Exception {
 
         String url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi?dbfrom=pubmed&db=pmc&linkname=pubmed_pmc&id=";
-        FileDownloader fd = new FileDownloader();
+        FileDownloader2 fd = new FileDownloader2();
         fd.setExternalFile(url+pmid);
         String xml = fd.download();
 

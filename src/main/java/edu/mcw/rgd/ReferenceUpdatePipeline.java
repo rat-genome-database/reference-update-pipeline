@@ -2,7 +2,7 @@ package edu.mcw.rgd;
 import edu.mcw.rgd.datamodel.Reference;
 import edu.mcw.rgd.datamodel.XdbId;
 import edu.mcw.rgd.process.CounterPool;
-import edu.mcw.rgd.process.FileDownloader;
+import edu.mcw.rgd.process.FileDownloader2;
 import edu.mcw.rgd.process.MemoryMonitor;
 import edu.mcw.rgd.process.Utils;
 import edu.mcw.rgd.xml.XomAnalyzer;
@@ -207,7 +207,7 @@ public class ReferenceUpdatePipeline{
 
     private File downloadFile( String url ) throws Exception {
         // download the file to a tmp file
-        FileDownloader downloader = new FileDownloader();
+        FileDownloader2 downloader = new FileDownloader2();
         downloader.setMaxRetryCount(2);
         downloader.setDownloadRetryInterval(20); // set timeout between next download attempt to 20s
 
@@ -405,7 +405,7 @@ public class ReferenceUpdatePipeline{
         String pubMedIds = Utils.concatenate(pubMedIdList, ",");
         logImported.info("downloading PMID: "+pubMedIds);
 
-        FileDownloader downloader = new FileDownloader();
+        FileDownloader2 downloader = new FileDownloader2();
         if( updateMode ) {
             downloader.setExternalFile(importPubmedUrl + pubMedIds + "&mode=update");
             downloader.setLocalFile("data/pmid_"+pubMedIdList.get(0)+".txt");
@@ -435,7 +435,7 @@ public class ReferenceUpdatePipeline{
                     return failedCount;
                 }
             }
-        } catch(FileDownloader.PermanentDownloadErrorException e) {
+        } catch(FileDownloader2.PermanentDownloadErrorException e) {
         }
         return pubMedIdList.size();
     }

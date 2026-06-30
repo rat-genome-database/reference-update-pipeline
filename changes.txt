@@ -1,3 +1,6 @@
+Jun 30, 2026
+  migrated FileDownloader to FileDownloader2; removed unused dependencies (commons-net, httpclient, jaxen); AppConfigure.xml migrated from Spring DTD to XSD schema; removed orphan AuthorQC; updated dependencies
+
 May 12, 2026
   CLI: normalized all options to '--' prefix (except '-?'); fail loud on unknown options or when no work was requested; updated dependencies
 
