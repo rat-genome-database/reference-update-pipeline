@@ -71,6 +71,7 @@ public class ReferenceUpdatePipeline{
         boolean importPmcIds = false;
         boolean importReferencesForAllianceHtp = false;
         boolean importReferencesForAlliance = false;
+        boolean retractedReferences = false;
 
         for( String arg: args ) {
             switch (arg) {
@@ -82,6 +83,7 @@ public class ReferenceUpdatePipeline{
                 case "--importPmcIds" -> importPmcIds = true;
                 case "--importReferencesForAllianceHtp" -> importReferencesForAllianceHtp = true;
                 case "--importReferencesForAllianceHPO" -> importReferencesForAlliance = true;
+                case "--retractedReferences" -> retractedReferences = true;
                 default -> {
                     System.err.println("ERROR: unknown option '" + arg + "'");
                     pipeline.usage();
@@ -92,7 +94,8 @@ public class ReferenceUpdatePipeline{
         // refuse to run silently with no work scheduled
         if( !(fixDuplicateReferences || importMissingReferences || refreshReferences
                 || fixDuplicateAuthors || importPmcIds
-                || importReferencesForAllianceHtp || importReferencesForAlliance) ) {
+                || importReferencesForAllianceHtp || importReferencesForAlliance
+                || retractedReferences) ) {
             System.err.println("ERROR: no work options given");
             pipeline.usage();
         }
@@ -135,6 +138,10 @@ public class ReferenceUpdatePipeline{
                 module.run();
             }
 
+            if( retractedReferences ) {
+                RetractedReferences.run(pipeline.dao);
+            }
+
         } catch (Exception e) {
             Utils.printStackTrace(e, logStatus);
             throw e;
@@ -162,6 +169,7 @@ public class ReferenceUpdatePipeline{
                --importPmcIds
                --importReferencesForAllianceHtp
                --importReferencesForAllianceHPO
+               --retractedReferences
             """;
         System.out.println(usage);
         System.exit(0);

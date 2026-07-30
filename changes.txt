@@ -1,3 +1,7 @@
+Jul 30, 2026
+  added RetractedReferences module (--retractedReferences): reports active RGD references that have been retracted,
+    using the Retraction Watch CSV published by Crossref
+
 Jun 30, 2026
   migrated FileDownloader to FileDownloader2; removed unused dependencies (commons-net, httpclient, jaxen); AppConfigure.xml migrated from Spring DTD to XSD schema; removed orphan AuthorQC; updated dependencies
 
