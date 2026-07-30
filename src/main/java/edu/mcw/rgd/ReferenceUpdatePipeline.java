@@ -139,7 +139,8 @@ public class ReferenceUpdatePipeline{
             }
 
             if( retractedReferences ) {
-                RetractedReferences.run(pipeline.dao);
+                RetractedReferences module = (RetractedReferences) bf.getBean("retractedReferences");
+                module.run(pipeline.dao);
             }
 
         } catch (Exception e) {

@@ -28,6 +28,29 @@
         <property name="pubmedImportBatchSize" value="30" />
     </bean>
 
+    <bean id="retractedReferences" class="edu.mcw.rgd.RetractedReferences">
+        <!-- Retraction Watch database, published as a single CSV by Crossref; the 'name' parameter
+             is how Crossref asks callers to identify themselves -->
+        <property name="retractionWatchUrl" value="https://api.labs.crossref.org/data/retractionwatch?name=mtutaj@mcw.edu"/>
+        <property name="localFile" value="data/retraction_watch.csv"/>
+        <property name="maxRetryCount" value="2"/>
+        <property name="downloadRetryInterval" value="20"/>
+
+        <!-- logical name to column header in the downloaded CSV -->
+        <property name="columns">
+            <map>
+                <entry key="originalPmid" value="OriginalPaperPubMedID"/>
+                <entry key="retractionPmid" value="RetractionPubMedID"/>
+                <entry key="retractionDate" value="RetractionDate"/>
+                <entry key="nature" value="RetractionNature"/>
+                <entry key="reason" value="Reason"/>
+            </map>
+        </property>
+
+        <!-- how many of the most frequent retraction reasons to write to the debug log -->
+        <property name="topReasonCount" value="15"/>
+    </bean>
+
     <bean id="importReferencesForAlliance" class="edu.mcw.rgd.ImportReferencesForAlliance">
         <property name="importPubMedUrl" value="/rgdweb/pubmed/importReferences.html?pmid_list=" />
         <property name="importPubmedToolHost">

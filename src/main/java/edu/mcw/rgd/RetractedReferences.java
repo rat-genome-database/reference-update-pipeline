@@ -22,20 +22,26 @@ import java.util.TreeSet;
  * Retraction Watch database, which Crossref publishes as a single free CSV, carries the PubMed id
  * of both the retracted paper and its retraction notice, and additionally states the reason for
  * every retraction -- something PubMed does not provide in a structured form at all.
+ *
+ * The source url and the CSV column names are bean properties, so that a change on the Crossref
+ * side can be handled by editing AppConfigure.xml instead of rebuilding the pipeline.
  */
 public class RetractedReferences {
 
     private static final Logger log = LogManager.getLogger("retracted_references");
 
-    // Crossref asks that the caller identify itself; same address as 'eUtils_email' in AppConfigure.xml
-    static final String RETRACTION_WATCH_URL =
-            "https://api.labs.crossref.org/data/retractionwatch?name=mtutaj@mcw.edu";
+    private String retractionWatchUrl;
+    private String localFile;
+    private int maxRetryCount;
+    private int downloadRetryInterval;
+    private Map<String, String> columns;
+    private int topReasonCount;
 
-    public static void run(ReferenceUpdateDAO dao) throws Exception {
+    public void run(ReferenceUpdateDAO dao) throws Exception {
 
-        String localFile = downloadRetractionData();
+        String downloadedFile = downloadRetractionData();
 
-        Map<String, Retraction> retractionsByPmid = parse(localFile);
+        Map<String, Retraction> retractionsByPmid = parse(downloadedFile);
         log.info("RETRACTIONS WITH A PUBMED ID: " + retractionsByPmid.size());
 
         List<String> pmidsInRgd = dao.getPubmedIdsForActiveReferences();
@@ -62,25 +68,25 @@ public class RetractedReferences {
         log.info("===");
     }
 
-    static String downloadRetractionData() throws Exception {
+    String downloadRetractionData() throws Exception {
 
         FileDownloader2 fd = new FileDownloader2();
-        fd.setExternalFile(RETRACTION_WATCH_URL);
-        fd.setLocalFile("data/retraction_watch.csv");
+        fd.setExternalFile(getRetractionWatchUrl());
+        fd.setLocalFile(getLocalFile());
         fd.setPrependDateStamp(true);
-        fd.setMaxRetryCount(2);
-        fd.setDownloadRetryInterval(20);
+        fd.setMaxRetryCount(getMaxRetryCount());
+        fd.setDownloadRetryInterval(getDownloadRetryInterval());
 
-        String localFile = fd.downloadNew();
-        log.info("DOWNLOADED: " + localFile);
-        return localFile;
+        String downloadedFile = fd.downloadNew();
+        log.info("DOWNLOADED: " + downloadedFile);
+        return downloadedFile;
     }
 
     /**
      * builds a map of retracted-paper PubMed id to its retraction; rows without a PubMed id for the
      * original paper are counted but cannot be matched against RGD references, so they are skipped
      */
-    static Map<String, Retraction> parse(String fileName) throws Exception {
+    Map<String, Retraction> parse(String fileName) throws Exception {
 
         Map<String, Retraction> retractions = new HashMap<>();
         Map<String, Integer> natureCounts = new LinkedHashMap<>();
@@ -94,11 +100,11 @@ public class RetractedReferences {
             if( header==null ) {
                 throw new Exception("retraction file is empty: " + fileName);
             }
-            int colOriginalPmid = columnIndex(header, "OriginalPaperPubMedID");
-            int colRetractionPmid = columnIndex(header, "RetractionPubMedID");
-            int colRetractionDate = columnIndex(header, "RetractionDate");
-            int colNature = columnIndex(header, "RetractionNature");
-            int colReason = columnIndex(header, "Reason");
+            int colOriginalPmid = columnIndex(header, "originalPmid");
+            int colRetractionPmid = columnIndex(header, "retractionPmid");
+            int colRetractionDate = columnIndex(header, "retractionDate");
+            int colNature = columnIndex(header, "nature");
+            int colReason = columnIndex(header, "reason");
 
             List<String> rec;
             while( (rec=readRecord(in))!=null ) {
@@ -134,7 +140,7 @@ public class RetractedReferences {
 
         log.info("RETRACTION RECORDS READ: " + rows + "  (" + rowsWithoutPmid + " without a PubMed id)");
         logCounts("RETRACTION NATURE", natureCounts, 0);
-        logCounts("TOP RETRACTION REASONS", reasonCounts, 15);
+        logCounts("TOP RETRACTION REASONS", reasonCounts, getTopReasonCount());
         return retractions;
     }
 
@@ -146,7 +152,13 @@ public class RetractedReferences {
                 .forEach(e -> log.debug("   " + e.getValue() + "  " + e.getKey()));
     }
 
-    static int columnIndex(List<String> header, String columnName) throws Exception {
+    /** resolves a logical column name, via the configured mapping, to its position in the file header */
+    int columnIndex(List<String> header, String logicalName) throws Exception {
+
+        String columnName = getColumns()==null ? null : getColumns().get(logicalName);
+        if( columnName==null ) {
+            throw new Exception("no '" + logicalName + "' entry in the 'columns' property of the retractedReferences bean");
+        }
         int i = header.indexOf(columnName);
         if( i<0 ) {
             throw new Exception("retraction file has no '" + columnName + "' column; format must have changed");
@@ -249,5 +261,53 @@ public class RetractedReferences {
         String retractionDate;
         String nature;
         String reason;
+    }
+
+    public void setRetractionWatchUrl(String retractionWatchUrl) {
+        this.retractionWatchUrl = retractionWatchUrl;
+    }
+
+    public String getRetractionWatchUrl() {
+        return retractionWatchUrl;
+    }
+
+    public void setLocalFile(String localFile) {
+        this.localFile = localFile;
+    }
+
+    public String getLocalFile() {
+        return localFile;
+    }
+
+    public void setMaxRetryCount(int maxRetryCount) {
+        this.maxRetryCount = maxRetryCount;
+    }
+
+    public int getMaxRetryCount() {
+        return maxRetryCount;
+    }
+
+    public void setDownloadRetryInterval(int downloadRetryInterval) {
+        this.downloadRetryInterval = downloadRetryInterval;
+    }
+
+    public int getDownloadRetryInterval() {
+        return downloadRetryInterval;
+    }
+
+    public void setColumns(Map<String, String> columns) {
+        this.columns = columns;
+    }
+
+    public Map<String, String> getColumns() {
+        return columns;
+    }
+
+    public void setTopReasonCount(int topReasonCount) {
+        this.topReasonCount = topReasonCount;
+    }
+
+    public int getTopReasonCount() {
+        return topReasonCount;
     }
 }
