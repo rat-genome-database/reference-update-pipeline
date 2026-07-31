@@ -52,6 +52,9 @@ public class RetractedReferences {
     private String retractionNature;
     private List<String> retractionDateFormats;
 
+    // FULL_ANNOT.ASPECT to the ontology its terms come from; read from the database, not configured
+    private Map<String, String> aspectOntologies = new HashMap<>();
+
     public void run(ReferenceUpdateDAO dao) throws Exception {
 
         String downloadedFile = downloadRetractionData();
@@ -61,6 +64,9 @@ public class RetractedReferences {
 
         Map<String, RefInRgd> refsByPmid = dao.getReferencesByPubmedId();
         log.info("RGD REFERENCES WITH A PUBMED ID: " + refsByPmid.size());
+
+        aspectOntologies = dao.getAspectOntologies();
+        log.debug("ASPECT TO ONTOLOGY MAPPINGS: " + aspectOntologies.size());
 
         // link each retraction to the RGD reference for the same PubMed id, if we have one
         List<Retraction> retracted = new ArrayList<>();
@@ -112,50 +118,107 @@ public class RetractedReferences {
         for( Retraction r: retracted ) {
             refRgdIds.add(r.rgdId);
         }
-        Map<Integer, Integer> annotCounts = dao.getAnnotationCounts(refRgdIds);
+        Map<Integer, AnnotStats> annotStats = dao.getAnnotationStats(refRgdIds);
+        for( Retraction r: retracted ) {
+            r.annots = annotStats.getOrDefault(r.rgdId, EMPTY_STATS);
+        }
+
+        // the references worth a curator's time first: most annotations at stake, and among
+        // equally annotated ones the most recently retracted
+        retracted.sort((a, b) -> {
+            if( a.annots.total != b.annots.total ) {
+                return b.annots.total - a.annots.total;
+            }
+            long ta = a.retractionDate==null ? Long.MIN_VALUE : a.retractionDate.getTime();
+            long tb = b.retractionDate==null ? Long.MIN_VALUE : b.retractionDate.getTime();
+            return Long.compare(tb, ta);
+        });
 
         int withdrawnWithAnnots = 0;
         int activeCount = 0;
         int activeAnnots = 0;
+        Map<String, Integer> activeByAspect = new TreeMap<>();
+        Map<String, Integer> activeBySource = new TreeMap<>();
 
         logWithdrawn.info("=== RETRACTED REFERENCES ALREADY WITHDRAWN IN RGD, THAT STILL HAVE ANNOTATIONS ===");
         logActive.info("=== RETRACTED REFERENCES STILL ACTIVE IN RGD ===");
 
-        retracted.sort((a, b) -> a.rgdId - b.rgdId);
         for( Retraction r: retracted ) {
-            int annots = annotCounts.getOrDefault(r.rgdId, 0);
-
             if( RefInRgd.WITHDRAWN.equals(r.objectStatus) ) {
                 // report 1: withdrawn in RGD but the annotations are still there
-                if( annots > 0 ) {
+                if( r.annots.total > 0 ) {
                     withdrawnWithAnnots++;
-                    logWithdrawn.info(describe(r, annots));
+                    logWithdrawn.info(describe(r));
                 }
             } else if( RefInRgd.ACTIVE.equals(r.objectStatus) ) {
                 // report 2: retracted upstream, still active here
                 activeCount++;
-                activeAnnots += annots;
-                logActive.info(describe(r, annots));
+                activeAnnots += r.annots.total;
+                r.annots.byAspect.forEach((k, v) -> activeByAspect.merge(k, v, Integer::sum));
+                r.annots.bySource.forEach((k, v) -> activeBySource.merge(k, v, Integer::sum));
+                logActive.info(describe(r));
             }
         }
 
         logWithdrawn.info("--- references withdrawn in RGD that still have annotations: " + withdrawnWithAnnots);
         logActive.info("--- references still active in RGD: " + activeCount
                 + ", carrying " + activeAnnots + " annotations");
+        logActive.info("--- annotations by ontology: " + formatAspects(activeByAspect));
+        logActive.info("--- annotations by data source: " + formatCounts(activeBySource));
 
         log.info("RETRACTED, ALREADY WITHDRAWN IN RGD, STILL ANNOTATED: " + withdrawnWithAnnots);
         log.info("RETRACTED, STILL ACTIVE IN RGD: " + activeCount);
         log.info("ANNOTATIONS ON REFERENCES STILL ACTIVE IN RGD: " + activeAnnots);
+        log.info("   by ontology:    " + formatAspects(activeByAspect));
+        log.info("   by data source: " + formatCounts(activeBySource));
     }
 
-    String describe(Retraction r, int annots) {
-        return "RGD:" + r.rgdId
-                + "  PMID:" + r.originalPmid
-                + "  annotations:" + annots
-                + "  retracted:" + (r.retractionDate==null ? "?" : new SimpleDateFormat("yyyy-MM-dd").format(r.retractionDate))
-                + "  notice PMID:" + (Utils.isStringEmpty(r.retractionPmid) ? "n/a" : r.retractionPmid)
-                + "\n      title:  " + r.title
-                + "\n      reason: " + r.reason;
+    String describe(Retraction r) {
+        StringBuilder buf = new StringBuilder();
+        buf.append("RGD:").append(r.rgdId)
+                .append("  PMID:").append(r.originalPmid)
+                .append("  annotations:").append(r.annots.total)
+                .append("  retracted:").append(r.retractionDate==null ? "?" : new SimpleDateFormat("yyyy-MM-dd").format(r.retractionDate))
+                .append("  notice PMID:").append(Utils.isStringEmpty(r.retractionPmid) ? "n/a" : r.retractionPmid)
+                .append("\n      title:  ").append(r.title)
+                .append("\n      reason: ").append(r.reason);
+        if( r.annots.total > 0 ) {
+            buf.append("\n      ontologies: ").append(formatAspects(r.annots.byAspect));
+            buf.append("\n      sources:    ").append(formatCounts(r.annots.bySource));
+        }
+        return buf.toString();
+    }
+
+    /** 'D/RDO=8, P/BP=3' -- aspect, the ontology it belongs to, and the count */
+    String formatAspects(Map<String, Integer> byAspect) {
+        StringBuilder buf = new StringBuilder();
+        byAspect.entrySet().stream()
+                .sorted((a, b) -> b.getValue() - a.getValue())
+                .forEach(e -> {
+                    String ontId = getAspectOntologies()==null ? null : getAspectOntologies().get(e.getKey());
+                    if( ontId==null ) {
+                        log.warn("aspect '" + e.getKey() + "' has no entry in the 'aspectOntologies' property");
+                        ontId = "?";
+                    }
+                    if( buf.length()>0 ) {
+                        buf.append(", ");
+                    }
+                    buf.append(e.getKey()).append("/").append(ontId).append("=").append(e.getValue());
+                });
+        return buf.toString();
+    }
+
+    static String formatCounts(Map<String, Integer> counts) {
+        StringBuilder buf = new StringBuilder();
+        counts.entrySet().stream()
+                .sorted((a, b) -> b.getValue() - a.getValue())
+                .forEach(e -> {
+                    if( buf.length()>0 ) {
+                        buf.append(", ");
+                    }
+                    buf.append(e.getKey()).append("=").append(e.getValue());
+                });
+        return buf.toString();
     }
 
     boolean isRetraction(Retraction r) {
@@ -376,6 +439,8 @@ public class RetractedReferences {
         return fields;
     }
 
+    static final AnnotStats EMPTY_STATS = new AnnotStats();
+
     /** one row of REFERENCES_RETRACTED */
     public static class Retraction {
         public String originalPmid;
@@ -390,6 +455,14 @@ public class RetractedReferences {
         // not stored, used for reporting only
         String objectStatus;
         String title;
+        AnnotStats annots = EMPTY_STATS;
+    }
+
+    /** the annotations a reference carries, broken down for the report */
+    public static class AnnotStats {
+        public int total;
+        public Map<String, Integer> byAspect = new TreeMap<>();
+        public Map<String, Integer> bySource = new TreeMap<>();
     }
 
     /** an RGD reference, as far as this module is concerned */
@@ -470,5 +543,9 @@ public class RetractedReferences {
 
     public List<String> getRetractionDateFormats() {
         return retractionDateFormats;
+    }
+
+    public Map<String, String> getAspectOntologies() {
+        return aspectOntologies;
     }
 }

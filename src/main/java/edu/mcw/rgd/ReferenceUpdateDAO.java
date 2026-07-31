@@ -1,12 +1,14 @@
 package edu.mcw.rgd;
 
 import edu.mcw.rgd.dao.impl.AssociationDAO;
+import edu.mcw.rgd.dao.impl.OntologyXDAO;
 import edu.mcw.rgd.dao.impl.ReferenceDAO;
 import edu.mcw.rgd.dao.impl.XdbIdDAO;
 import edu.mcw.rgd.dao.spring.IntListQuery;
 import edu.mcw.rgd.datamodel.Author;
 import edu.mcw.rgd.datamodel.Reference;
 import edu.mcw.rgd.datamodel.XdbId;
+import edu.mcw.rgd.datamodel.ontologyx.Ontology;
 import edu.mcw.rgd.process.Utils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,6 +29,7 @@ public class ReferenceUpdateDAO {
     XdbIdDAO xdbIdDao = new XdbIdDAO();
     ReferenceDAO refDao = new ReferenceDAO();
     AssociationDAO assDao = new AssociationDAO();
+    OntologyXDAO ontDao = new OntologyXDAO();
 
     public List<Reference> getActiveReferences() throws Exception {
 
@@ -260,12 +263,27 @@ public class ReferenceUpdateDAO {
         return inserted;
     }
 
-    /** annotation counts per reference, for the given references only */
-    public Map<Integer, Integer> getAnnotationCounts(Collection<Integer> refRgdIds) throws Exception {
+    /**
+     * FULL_ANNOT.ASPECT to the id of the ontology its terms come from, f.e. 'D' to 'RDO';
+     * ontologies that are not tied to an aspect are skipped
+     */
+    public Map<String, String> getAspectOntologies() throws Exception {
 
-        Map<Integer, Integer> counts = new HashMap<>();
+        Map<String, String> aspectOntologies = new HashMap<>();
+        for( Ontology ont: ontDao.getOntologies() ) {
+            if( !Utils.isStringEmpty(ont.getAspect()) ) {
+                aspectOntologies.put(ont.getAspect(), ont.getId());
+            }
+        }
+        return aspectOntologies;
+    }
+
+    /** annotation counts per reference, broken down by aspect and by data source */
+    public Map<Integer, RetractedReferences.AnnotStats> getAnnotationStats(Collection<Integer> refRgdIds) throws Exception {
+
+        Map<Integer, RetractedReferences.AnnotStats> stats = new HashMap<>();
         if( refRgdIds.isEmpty() ) {
-            return counts;
+            return stats;
         }
 
         List<Integer> ids = new ArrayList<>(refRgdIds);
@@ -276,11 +294,11 @@ public class ReferenceUpdateDAO {
                 List<Integer> chunk = ids.subList(start, Math.min(start+1000, ids.size()));
 
                 StringBuilder sql = new StringBuilder(
-                        "SELECT ref_rgd_id, COUNT(*) FROM full_annot WHERE ref_rgd_id IN (");
+                        "SELECT ref_rgd_id, aspect, data_src, COUNT(*) FROM full_annot WHERE ref_rgd_id IN (");
                 for( int i=0; i<chunk.size(); i++ ) {
                     sql.append(i>0 ? ",?" : "?");
                 }
-                sql.append(") GROUP BY ref_rgd_id");
+                sql.append(") GROUP BY ref_rgd_id, aspect, data_src");
 
                 PreparedStatement ps = conn.prepareStatement(sql.toString());
                 for( int i=0; i<chunk.size(); i++ ) {
@@ -288,7 +306,16 @@ public class ReferenceUpdateDAO {
                 }
                 ResultSet rs = ps.executeQuery();
                 while( rs.next() ) {
-                    counts.put(rs.getInt(1), rs.getInt(2));
+                    int refRgdId = rs.getInt(1);
+                    String aspect = Utils.defaultString(rs.getString(2));
+                    String dataSrc = Utils.defaultString(rs.getString(3));
+                    int count = rs.getInt(4);
+
+                    RetractedReferences.AnnotStats s =
+                            stats.computeIfAbsent(refRgdId, k -> new RetractedReferences.AnnotStats());
+                    s.total += count;
+                    s.byAspect.merge(aspect, count, Integer::sum);
+                    s.bySource.merge(dataSrc, count, Integer::sum);
                 }
                 rs.close();
                 ps.close();
@@ -296,6 +323,6 @@ public class ReferenceUpdateDAO {
         } finally {
             conn.close();
         }
-        return counts;
+        return stats;
     }
 }
