@@ -177,19 +177,19 @@ public class RetractedReferences {
         StringBuilder buf = new StringBuilder();
         buf.append("RGD:").append(r.rgdId)
                 .append("  PMID:").append(r.originalPmid)
-                .append("  annotations:").append(r.annots.total)
                 .append("  retracted:").append(r.retractionDate==null ? "?" : new SimpleDateFormat("yyyy-MM-dd").format(r.retractionDate))
                 .append("  notice PMID:").append(Utils.isStringEmpty(r.retractionPmid) ? "n/a" : r.retractionPmid)
                 .append("\n      title:  ").append(r.title)
-                .append("\n      reason: ").append(r.reason);
+                .append("\n      reason: ").append(r.reason)
+                .append("\n      annotations:").append(r.annots.total);
         if( r.annots.total > 0 ) {
-            buf.append("\n      ontologies: ").append(formatAspects(r.annots.byAspect));
-            buf.append("\n      sources:    ").append(formatCounts(r.annots.bySource));
+            buf.append("\n          ontologies: ").append(formatAspects(r.annots.byAspect));
+            buf.append("\n          sources:    ").append(formatCounts(r.annots.bySource));
         }
         return buf.toString();
     }
 
-    /** 'D/RDO=8, P/BP=3' -- aspect, the ontology it belongs to, and the count */
+    /** 'aspect D (RDO)=8, aspect P (BP)=3' -- aspect, the ontology it belongs to, and the count */
     String formatAspects(Map<String, Integer> byAspect) {
         StringBuilder buf = new StringBuilder();
         byAspect.entrySet().stream()
@@ -197,13 +197,14 @@ public class RetractedReferences {
                 .forEach(e -> {
                     String ontId = getAspectOntologies()==null ? null : getAspectOntologies().get(e.getKey());
                     if( ontId==null ) {
-                        log.warn("aspect '" + e.getKey() + "' has no entry in the 'aspectOntologies' property");
+                        log.warn("aspect '" + e.getKey() + "' is not tied to an ontology in the ONTOLOGIES table");
                         ontId = "?";
                     }
                     if( buf.length()>0 ) {
                         buf.append(", ");
                     }
-                    buf.append(e.getKey()).append("/").append(ontId).append("=").append(e.getValue());
+                    buf.append("aspect ").append(e.getKey())
+                            .append(" (").append(ontId).append(")=").append(e.getValue());
                 });
         return buf.toString();
     }
