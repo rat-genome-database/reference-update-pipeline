@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
 /**
@@ -88,13 +89,62 @@ public class RetractedReferences {
             }
         }
 
-        int inserted = dao.refreshRetractedReferences(retractions);
-        log.info("REFERENCES_RETRACTED ROWS LOADED: " + inserted);
+        sync(dao, retractions);
 
         reportMatchesByNature(retractions);
         report(dao, retracted);
 
         log.info("===");
+    }
+
+    /**
+     * brings REFERENCES_RETRACTED in line with the download: rows new to it are inserted, rows
+     * whose content changed are updated, and rows no longer in the download are deleted. Keyed on
+     * the Retraction Watch record id, because nothing else in the row is unique.
+     */
+    void sync(ReferenceUpdateDAO dao, List<Retraction> retractions) throws Exception {
+
+        Map<Long, Retraction> incoming = new HashMap<>();
+        int duplicateRecordIds = 0;
+        for( Retraction r: retractions ) {
+            if( incoming.put(r.recordId, r) != null ) {
+                duplicateRecordIds++;
+            }
+        }
+        if( duplicateRecordIds > 0 ) {
+            log.warn("record id is not unique in the downloaded file: " + duplicateRecordIds
+                    + " duplicate(s); only the last row of each was kept");
+        }
+
+        Map<Long, Retraction> inRgd = dao.getRetractedReferences();
+        log.info("REFERENCES_RETRACTED ROWS BEFORE SYNC: " + inRgd.size());
+
+        List<Retraction> toInsert = new ArrayList<>();
+        List<Retraction> toUpdate = new ArrayList<>();
+        int unchanged = 0;
+
+        for( Retraction r: incoming.values() ) {
+            Retraction old = inRgd.get(r.recordId);
+            if( old==null ) {
+                toInsert.add(r);
+            } else if( r.sameAs(old) ) {
+                unchanged++;
+            } else {
+                toUpdate.add(r);
+            }
+        }
+
+        List<Long> toDelete = new ArrayList<>();
+        for( Long recordId: inRgd.keySet() ) {
+            if( !incoming.containsKey(recordId) ) {
+                toDelete.add(recordId);
+            }
+        }
+
+        log.info("REFERENCES_RETRACTED INSERTED: " + dao.insertRetractedReferences(toInsert));
+        log.info("REFERENCES_RETRACTED UPDATED: " + dao.updateRetractedReferences(toUpdate));
+        log.info("REFERENCES_RETRACTED DELETED: " + dao.deleteRetractedReferences(toDelete));
+        log.info("REFERENCES_RETRACTED UP TO DATE: " + unchanged);
     }
 
     /** a run-over of what matched RGD, so that non-retraction natures are not silently ignored */
@@ -259,6 +309,7 @@ public class RetractedReferences {
             if( header==null ) {
                 throw new Exception("retraction file is empty: " + fileName);
             }
+            int colRecordId = columnIndex(header, "recordId");
             int colOriginalPmid = columnIndex(header, "originalPmid");
             int colRetractionPmid = columnIndex(header, "retractionPmid");
             int colRetractionDate = columnIndex(header, "retractionDate");
@@ -278,7 +329,14 @@ public class RetractedReferences {
                     continue;
                 }
 
+                String recordId = field(rec, colRecordId).trim();
+                if( !recordId.matches("[0-9]+") ) {
+                    log.warn("skipped a row whose record id is not numeric: [" + recordId + "]");
+                    continue;
+                }
+
                 Retraction r = new Retraction();
+                r.recordId = Long.parseLong(recordId);
                 r.originalPmid = originalPmid;
                 r.retractionPmid = pmidOrEmpty(field(rec, colRetractionPmid));
                 r.nature = field(rec, colNature).trim();
@@ -444,6 +502,7 @@ public class RetractedReferences {
 
     /** one row of REFERENCES_RETRACTED */
     public static class Retraction {
+        public long recordId;
         public String originalPmid;
         public String retractionPmid;
         public Date retractionDate;
@@ -457,6 +516,27 @@ public class RetractedReferences {
         String objectStatus;
         String title;
         AnnotStats annots = EMPTY_STATS;
+
+        /** true when every stored column matches, so the row does not need updating */
+        boolean sameAs(Retraction other) {
+            return Utils.stringsAreEqual(originalPmid, other.originalPmid)
+                    && Utils.stringsAreEqual(retractionPmid, other.retractionPmid)
+                    && sameDay(retractionDate, other.retractionDate)
+                    && Utils.stringsAreEqual(nature, other.nature)
+                    && Utils.stringsAreEqual(reason, other.reason)
+                    && Objects.equals(rgdId, other.rgdId)
+                    && sameDay(dateCreatedInRgd, other.dateCreatedInRgd)
+                    && sameDay(dateRetractedInRgd, other.dateRetractedInRgd);
+        }
+
+        /** the columns are Oracle DATEs, so only the day is significant */
+        static boolean sameDay(Date d1, Date d2) {
+            if( d1==null || d2==null ) {
+                return d1==null && d2==null;
+            }
+            SimpleDateFormat day = new SimpleDateFormat("yyyyMMdd");
+            return day.format(d1).equals(day.format(d2));
+        }
     }
 
     /** the annotations a reference carries, broken down for the report */

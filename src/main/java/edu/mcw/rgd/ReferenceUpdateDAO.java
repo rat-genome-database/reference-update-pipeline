@@ -214,40 +214,60 @@ public class ReferenceUpdateDAO {
         return refs;
     }
 
-    /** replaces the contents of REFERENCES_RETRACTED with the retractions just downloaded */
-    public int refreshRetractedReferences(Collection<RetractedReferences.Retraction> retractions) throws Exception {
+    /** everything currently in REFERENCES_RETRACTED, keyed by the Retraction Watch record id */
+    public Map<Long, RetractedReferences.Retraction> getRetractedReferences() throws Exception {
 
-        String insertSql = """
+        String sql = """
+            SELECT record_id, original_pmid, retraction_pmid, retraction_date, nature, reason,
+                   original_pmid_rgd_id, date_created_in_rgd, date_retracted_in_rgd
+            FROM references_retracted
+            """;
+
+        Map<Long, RetractedReferences.Retraction> rows = new HashMap<>();
+        Connection conn = refDao.getConnection();
+        try {
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setFetchSize(5000);
+            ResultSet rs = ps.executeQuery();
+            while( rs.next() ) {
+                RetractedReferences.Retraction r = new RetractedReferences.Retraction();
+                r.recordId = rs.getLong(1);
+                r.originalPmid = Utils.defaultString(rs.getString(2));
+                r.retractionPmid = Utils.defaultString(rs.getString(3));
+                r.retractionDate = rs.getDate(4);
+                r.nature = Utils.defaultString(rs.getString(5));
+                r.reason = Utils.defaultString(rs.getString(6));
+                r.rgdId = rs.getObject(7)==null ? null : rs.getInt(7);
+                r.dateCreatedInRgd = rs.getDate(8);
+                r.dateRetractedInRgd = rs.getDate(9);
+                rows.put(r.recordId, r);
+            }
+            rs.close();
+            ps.close();
+        } finally {
+            conn.close();
+        }
+        return rows;
+    }
+
+    public int insertRetractedReferences(Collection<RetractedReferences.Retraction> retractions) throws Exception {
+
+        String sql = """
             INSERT INTO references_retracted
-              (original_pmid, retraction_pmid, retraction_date, nature, reason,
+              (record_id, original_pmid, retraction_pmid, retraction_date, nature, reason,
                original_pmid_rgd_id, date_created_in_rgd, date_retracted_in_rgd)
-            VALUES (?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?)
             """;
 
         int inserted = 0;
         Connection conn = refDao.getConnection();
         try {
-            PreparedStatement psDelete = conn.prepareStatement("DELETE FROM references_retracted");
-            psDelete.executeUpdate();
-            psDelete.close();
-
-            PreparedStatement ps = conn.prepareStatement(insertSql);
+            PreparedStatement ps = conn.prepareStatement(sql);
             int batch = 0;
             for( RetractedReferences.Retraction r: retractions ) {
-                ps.setString(1, r.originalPmid);
-                ps.setString(2, Utils.isStringEmpty(r.retractionPmid) ? null : r.retractionPmid);
-                ps.setDate(3, r.retractionDate==null ? null : new java.sql.Date(r.retractionDate.getTime()));
-                ps.setString(4, r.nature);
-                ps.setString(5, r.reason);
-                if( r.rgdId==null ) {
-                    ps.setNull(6, Types.NUMERIC);
-                } else {
-                    ps.setInt(6, r.rgdId);
-                }
-                ps.setDate(7, r.dateCreatedInRgd==null ? null : new java.sql.Date(r.dateCreatedInRgd.getTime()));
-                ps.setDate(8, r.dateRetractedInRgd==null ? null : new java.sql.Date(r.dateRetractedInRgd.getTime()));
+                ps.setLong(1, r.recordId);
+                setRetractionFields(ps, r, 2);
                 ps.addBatch();
-
                 if( ++batch >= 1000 ) {
                     inserted += Arrays.stream(ps.executeBatch()).sum();
                     batch = 0;
@@ -261,6 +281,84 @@ public class ReferenceUpdateDAO {
             conn.close();
         }
         return inserted;
+    }
+
+    public int updateRetractedReferences(Collection<RetractedReferences.Retraction> retractions) throws Exception {
+
+        String sql = """
+            UPDATE references_retracted
+            SET original_pmid=?, retraction_pmid=?, retraction_date=?, nature=?, reason=?,
+                original_pmid_rgd_id=?, date_created_in_rgd=?, date_retracted_in_rgd=?
+            WHERE record_id=?
+            """;
+
+        int updated = 0;
+        Connection conn = refDao.getConnection();
+        try {
+            PreparedStatement ps = conn.prepareStatement(sql);
+            int batch = 0;
+            for( RetractedReferences.Retraction r: retractions ) {
+                setRetractionFields(ps, r, 1);
+                ps.setLong(9, r.recordId);
+                ps.addBatch();
+                if( ++batch >= 1000 ) {
+                    updated += Arrays.stream(ps.executeBatch()).sum();
+                    batch = 0;
+                }
+            }
+            if( batch > 0 ) {
+                updated += Arrays.stream(ps.executeBatch()).sum();
+            }
+            ps.close();
+        } finally {
+            conn.close();
+        }
+        return updated;
+    }
+
+    public int deleteRetractedReferences(Collection<Long> recordIds) throws Exception {
+
+        int deleted = 0;
+        Connection conn = refDao.getConnection();
+        try {
+            PreparedStatement ps = conn.prepareStatement("DELETE FROM references_retracted WHERE record_id=?");
+            int batch = 0;
+            for( Long recordId: recordIds ) {
+                ps.setLong(1, recordId);
+                ps.addBatch();
+                if( ++batch >= 1000 ) {
+                    deleted += Arrays.stream(ps.executeBatch()).sum();
+                    batch = 0;
+                }
+            }
+            if( batch > 0 ) {
+                deleted += Arrays.stream(ps.executeBatch()).sum();
+            }
+            ps.close();
+        } finally {
+            conn.close();
+        }
+        return deleted;
+    }
+
+    /** the eight non-key columns, in the order both the insert and the update use them */
+    private void setRetractionFields(PreparedStatement ps, RetractedReferences.Retraction r, int pos) throws Exception {
+        ps.setString(pos, r.originalPmid);
+        ps.setString(pos+1, Utils.isStringEmpty(r.retractionPmid) ? null : r.retractionPmid);
+        ps.setDate(pos+2, toSqlDate(r.retractionDate));
+        ps.setString(pos+3, r.nature);
+        ps.setString(pos+4, r.reason);
+        if( r.rgdId==null ) {
+            ps.setNull(pos+5, Types.NUMERIC);
+        } else {
+            ps.setInt(pos+5, r.rgdId);
+        }
+        ps.setDate(pos+6, toSqlDate(r.dateCreatedInRgd));
+        ps.setDate(pos+7, toSqlDate(r.dateRetractedInRgd));
+    }
+
+    private java.sql.Date toSqlDate(java.util.Date dt) {
+        return dt==null ? null : new java.sql.Date(dt.getTime());
     }
 
     /**

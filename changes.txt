@@ -1,3 +1,7 @@
+Jul 31, 2026
+  RetractedReferences: REFERENCES_RETRACTED is synchronized incrementally (insert/update/delete) instead of
+    being reloaded from scratch; keyed on the new RECORD_ID column, which carries a unique index
+
 Jul 30, 2026
   added RetractedReferences module (--retractedReferences): loads retraction data published by Crossref
     (the Retraction Watch database) into the new REFERENCES_RETRACTED table, and reports retracted references

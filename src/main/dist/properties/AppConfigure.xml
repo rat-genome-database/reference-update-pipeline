@@ -4,7 +4,7 @@
        xsi:schemaLocation="http://www.springframework.org/schema/beans
            https://www.springframework.org/schema/beans/spring-beans.xsd">
     <bean id="referenceUpdatePipeline" class="edu.mcw.rgd.ReferenceUpdatePipeline">
-        <property name="version" value="reference-update-pipeline  -- build Jul 30, 2026"/>
+        <property name="version" value="reference-update-pipeline  -- build Jul 31, 2026"/>
         <property name="eUtils_db" value="Pubmed"/>
         <property name="eUtils_tool" value="RatGenomeDatabase"/>
         <property name="eUtils_email" value="mtutaj@mcw.edu"/>
@@ -36,9 +36,11 @@
         <property name="maxRetryCount" value="2"/>
         <property name="downloadRetryInterval" value="20"/>
 
-        <!-- logical name to column header in the downloaded CSV -->
+        <!-- logical name to column header in the downloaded CSV; 'recordId' is Retraction Watch's
+             own row identifier and is what REFERENCES_RETRACTED is synchronized on -->
         <property name="columns">
             <map>
+                <entry key="recordId" value="Record ID"/>
                 <entry key="originalPmid" value="OriginalPaperPubMedID"/>
                 <entry key="retractionPmid" value="RetractionPubMedID"/>
                 <entry key="retractionDate" value="RetractionDate"/>
