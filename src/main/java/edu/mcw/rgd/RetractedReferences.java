@@ -1,27 +1,38 @@
 package edu.mcw.rgd;
 
 import edu.mcw.rgd.process.FileDownloader2;
+import edu.mcw.rgd.process.Utils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeSet;
+import java.util.TreeMap;
 
 /**
- * Reports which active RGD references have been retracted.
+ * Loads the published list of retracted papers into REFERENCES_RETRACTED and reports which RGD
+ * references are affected. This module is read only as far as curated data goes: it never
+ * withdraws a reference, edits a title or deletes an annotation -- REFERENCES_RETRACTED is the
+ * only table it writes to, and it is refreshed in full on every run.
  *
  * NLM does not publish a standalone file of retracted publications: retractions are only available
  * as publication types inside the full PubMed baseline, or through an E-utilities query that caps
  * out at 9,999 records (there are far more retractions than that). This module therefore uses the
  * Retraction Watch database, which Crossref publishes as a single free CSV, carries the PubMed id
- * of both the retracted paper and its retraction notice, and additionally states the reason for
- * every retraction -- something PubMed does not provide in a structured form at all.
+ * of both the retracted paper and its retraction notice, and additionally states the nature and
+ * the reason of every retraction -- neither of which PubMed provides in a structured form.
+ *
+ * The nature matters: the file also carries corrections, expressions of concern and reinstatements,
+ * and those must not be treated as retractions. Only rows whose nature is given by the
+ * 'retractionNature' property count as a retraction for reporting purposes; the rest are still
+ * loaded into REFERENCES_RETRACTED so that curators can see them.
  *
  * The source url and the CSV column names are bean properties, so that a change on the Crossref
  * side can be handled by editing AppConfigure.xml instead of rebuilding the pipeline.
@@ -29,6 +40,8 @@ import java.util.TreeSet;
 public class RetractedReferences {
 
     private static final Logger log = LogManager.getLogger("retracted_references");
+    private static final Logger logWithdrawn = LogManager.getLogger("retracted_refs_withdrawn");
+    private static final Logger logActive = LogManager.getLogger("retracted_refs_active");
 
     private String retractionWatchUrl;
     private String localFile;
@@ -36,36 +49,117 @@ public class RetractedReferences {
     private int downloadRetryInterval;
     private Map<String, String> columns;
     private int topReasonCount;
+    private String retractionNature;
+    private List<String> retractionDateFormats;
 
     public void run(ReferenceUpdateDAO dao) throws Exception {
 
         String downloadedFile = downloadRetractionData();
 
-        Map<String, Retraction> retractionsByPmid = parse(downloadedFile);
-        log.info("RETRACTIONS WITH A PUBMED ID: " + retractionsByPmid.size());
+        List<Retraction> retractions = parse(downloadedFile);
+        log.info("RETRACTION RECORDS WITH A PUBMED ID: " + retractions.size());
 
-        List<String> pmidsInRgd = dao.getPubmedIdsForActiveReferences();
-        log.info("ACTIVE RGD REFERENCES WITH A PUBMED ID: " + pmidsInRgd.size());
+        Map<String, RefInRgd> refsByPmid = dao.getReferencesByPubmedId();
+        log.info("RGD REFERENCES WITH A PUBMED ID: " + refsByPmid.size());
 
-        // report every active RGD reference that has been retracted
-        int retractedInRgd = 0;
-        for( String pmid: new TreeSet<>(pmidsInRgd) ) {
-            Retraction r = retractionsByPmid.get(pmid);
-            if( r==null ) {
-                continue;
+        // link each retraction to the RGD reference for the same PubMed id, if we have one
+        List<Retraction> retracted = new ArrayList<>();
+        for( Retraction r: retractions ) {
+            RefInRgd ref = refsByPmid.get(r.originalPmid);
+            if( ref!=null ) {
+                r.rgdId = ref.rgdId;
+                r.dateCreatedInRgd = ref.createdDate;
+                r.objectStatus = ref.objectStatus;
+                r.title = ref.title;
+                // RGD_IDS has no dedicated 'date withdrawn' column, so the last modification of the
+                // rgd id is the closest thing to when the reference was withdrawn
+                if( ref.isWithdrawn() ) {
+                    r.dateRetractedInRgd = ref.lastModifiedDate;
+                }
             }
-            retractedInRgd++;
-
-            int refRgdId = dao.getReferenceRgdIdByPubmedId(pmid);
-            log.info("  RGD:" + refRgdId + "  PMID:" + pmid
-                    + "  retracted " + r.retractionDate
-                    + "  [" + r.nature + "]"
-                    + "  notice PMID:" + (r.retractionPmid.isEmpty() ? "n/a" : r.retractionPmid)
-                    + "  reason: " + r.reason);
+            if( isRetraction(r) && r.rgdId!=null ) {
+                retracted.add(r);
+            }
         }
 
-        log.info("RETRACTED RGD REFERENCES: " + retractedInRgd);
+        int inserted = dao.refreshRetractedReferences(retractions);
+        log.info("REFERENCES_RETRACTED ROWS LOADED: " + inserted);
+
+        reportMatchesByNature(retractions);
+        report(dao, retracted);
+
         log.info("===");
+    }
+
+    /** a run-over of what matched RGD, so that non-retraction natures are not silently ignored */
+    void reportMatchesByNature(List<Retraction> retractions) {
+
+        Map<String, Integer> byNature = new TreeMap<>();
+        for( Retraction r: retractions ) {
+            if( r.rgdId!=null ) {
+                byNature.merge(r.nature, 1, Integer::sum);
+            }
+        }
+        log.info("MATCHED TO AN RGD REFERENCE, BY NATURE:");
+        byNature.forEach((nature, count) ->
+                log.info("   " + count + "  " + nature
+                        + (nature.equalsIgnoreCase(getRetractionNature()) ? "   <== reported below" : "")));
+    }
+
+    void report(ReferenceUpdateDAO dao, List<Retraction> retracted) throws Exception {
+
+        List<Integer> refRgdIds = new ArrayList<>();
+        for( Retraction r: retracted ) {
+            refRgdIds.add(r.rgdId);
+        }
+        Map<Integer, Integer> annotCounts = dao.getAnnotationCounts(refRgdIds);
+
+        int withdrawnWithAnnots = 0;
+        int activeCount = 0;
+        int activeAnnots = 0;
+
+        logWithdrawn.info("=== RETRACTED REFERENCES ALREADY WITHDRAWN IN RGD, THAT STILL HAVE ANNOTATIONS ===");
+        logActive.info("=== RETRACTED REFERENCES STILL ACTIVE IN RGD ===");
+
+        retracted.sort((a, b) -> a.rgdId - b.rgdId);
+        for( Retraction r: retracted ) {
+            int annots = annotCounts.getOrDefault(r.rgdId, 0);
+
+            if( RefInRgd.WITHDRAWN.equals(r.objectStatus) ) {
+                // report 1: withdrawn in RGD but the annotations are still there
+                if( annots > 0 ) {
+                    withdrawnWithAnnots++;
+                    logWithdrawn.info(describe(r, annots));
+                }
+            } else if( RefInRgd.ACTIVE.equals(r.objectStatus) ) {
+                // report 2: retracted upstream, still active here
+                activeCount++;
+                activeAnnots += annots;
+                logActive.info(describe(r, annots));
+            }
+        }
+
+        logWithdrawn.info("--- references withdrawn in RGD that still have annotations: " + withdrawnWithAnnots);
+        logActive.info("--- references still active in RGD: " + activeCount
+                + ", carrying " + activeAnnots + " annotations");
+
+        log.info("RETRACTED, ALREADY WITHDRAWN IN RGD, STILL ANNOTATED: " + withdrawnWithAnnots);
+        log.info("RETRACTED, STILL ACTIVE IN RGD: " + activeCount);
+        log.info("ANNOTATIONS ON REFERENCES STILL ACTIVE IN RGD: " + activeAnnots);
+    }
+
+    String describe(Retraction r, int annots) {
+        return "RGD:" + r.rgdId
+                + "  PMID:" + r.originalPmid
+                + "  annotations:" + annots
+                + "  retracted:" + (r.retractionDate==null ? "?" : new SimpleDateFormat("yyyy-MM-dd").format(r.retractionDate))
+                + "  notice PMID:" + (Utils.isStringEmpty(r.retractionPmid) ? "n/a" : r.retractionPmid)
+                + "\n      title:  " + r.title
+                + "\n      reason: " + r.reason;
+    }
+
+    boolean isRetraction(Retraction r) {
+        return r.nature!=null && r.nature.equalsIgnoreCase(getRetractionNature());
     }
 
     String downloadRetractionData() throws Exception {
@@ -83,16 +177,17 @@ public class RetractedReferences {
     }
 
     /**
-     * builds a map of retracted-paper PubMed id to its retraction; rows without a PubMed id for the
-     * original paper are counted but cannot be matched against RGD references, so they are skipped
+     * every row that carries a PubMed id for the retracted paper; rows without one cannot be
+     * matched against RGD references and are skipped
      */
-    Map<String, Retraction> parse(String fileName) throws Exception {
+    List<Retraction> parse(String fileName) throws Exception {
 
-        Map<String, Retraction> retractions = new HashMap<>();
+        List<Retraction> retractions = new ArrayList<>();
         Map<String, Integer> natureCounts = new LinkedHashMap<>();
         Map<String, Integer> reasonCounts = new LinkedHashMap<>();
         int rows = 0;
         int rowsWithoutPmid = 0;
+        int unparsableDates = 0;
 
         BufferedReader in = new BufferedReader(new FileReader(fileName));
         try {
@@ -113,11 +208,23 @@ public class RetractedReferences {
                 }
                 rows++;
 
+                String originalPmid = pmidOrEmpty(field(rec, colOriginalPmid));
+                if( originalPmid.isEmpty() ) {
+                    rowsWithoutPmid++;
+                    continue;
+                }
+
                 Retraction r = new Retraction();
+                r.originalPmid = originalPmid;
                 r.retractionPmid = pmidOrEmpty(field(rec, colRetractionPmid));
-                r.retractionDate = field(rec, colRetractionDate).trim();
                 r.nature = field(rec, colNature).trim();
                 r.reason = normalizeReasons(field(rec, colReason));
+
+                String rawDate = field(rec, colRetractionDate).trim();
+                r.retractionDate = parseDate(rawDate);
+                if( r.retractionDate==null && !rawDate.isEmpty() ) {
+                    unparsableDates++;
+                }
 
                 natureCounts.merge(r.nature, 1, Integer::sum);
                 for( String reason: r.reason.split("; ") ) {
@@ -125,23 +232,36 @@ public class RetractedReferences {
                         reasonCounts.merge(reason, 1, Integer::sum);
                     }
                 }
-
-                String originalPmid = pmidOrEmpty(field(rec, colOriginalPmid));
-                if( originalPmid.isEmpty() ) {
-                    rowsWithoutPmid++;
-                    continue;
-                }
-                // a paper can appear more than once (f.e. retracted, then reinstated); last row wins
-                retractions.put(originalPmid, r);
+                retractions.add(r);
             }
         } finally {
             in.close();
         }
 
         log.info("RETRACTION RECORDS READ: " + rows + "  (" + rowsWithoutPmid + " without a PubMed id)");
+        if( unparsableDates > 0 ) {
+            log.warn("retraction dates that could not be parsed: " + unparsableDates);
+        }
         logCounts("RETRACTION NATURE", natureCounts, 0);
         logCounts("TOP RETRACTION REASONS", reasonCounts, getTopReasonCount());
         return retractions;
+    }
+
+    /** dates look like '10/16/2025 0:00'; the exact patterns are configurable */
+    Date parseDate(String s) {
+        if( Utils.isStringEmpty(s) ) {
+            return null;
+        }
+        for( String pattern: getRetractionDateFormats() ) {
+            try {
+                SimpleDateFormat sdf = new SimpleDateFormat(pattern);
+                sdf.setLenient(false);
+                return sdf.parse(s);
+            } catch( Exception ignored ) {
+                // try the next pattern
+            }
+        }
+        return null;
     }
 
     static void logCounts(String title, Map<String, Integer> counts, int limit) {
@@ -256,11 +376,36 @@ public class RetractedReferences {
         return fields;
     }
 
-    static class Retraction {
-        String retractionPmid;
-        String retractionDate;
-        String nature;
-        String reason;
+    /** one row of REFERENCES_RETRACTED */
+    public static class Retraction {
+        public String originalPmid;
+        public String retractionPmid;
+        public Date retractionDate;
+        public String nature;
+        public String reason;
+        public Integer rgdId;
+        public Date dateCreatedInRgd;
+        public Date dateRetractedInRgd;
+
+        // not stored, used for reporting only
+        String objectStatus;
+        String title;
+    }
+
+    /** an RGD reference, as far as this module is concerned */
+    public static class RefInRgd {
+        public static final String ACTIVE = "ACTIVE";
+        public static final String WITHDRAWN = "WITHDRAWN";
+
+        public int rgdId;
+        public String objectStatus;
+        public Date createdDate;
+        public Date lastModifiedDate;
+        public String title;
+
+        boolean isWithdrawn() {
+            return WITHDRAWN.equals(objectStatus);
+        }
     }
 
     public void setRetractionWatchUrl(String retractionWatchUrl) {
@@ -309,5 +454,21 @@ public class RetractedReferences {
 
     public int getTopReasonCount() {
         return topReasonCount;
+    }
+
+    public void setRetractionNature(String retractionNature) {
+        this.retractionNature = retractionNature;
+    }
+
+    public String getRetractionNature() {
+        return retractionNature;
+    }
+
+    public void setRetractionDateFormats(List<String> retractionDateFormats) {
+        this.retractionDateFormats = retractionDateFormats;
+    }
+
+    public List<String> getRetractionDateFormats() {
+        return retractionDateFormats;
     }
 }

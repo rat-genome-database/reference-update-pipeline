@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.Types;
 import java.util.*;
 
 /**
@@ -172,4 +173,129 @@ public class ReferenceUpdateDAO {
         return refDao.getReferenceRgdIdByPubmedId(pmid);
     }
 
+    /**
+     * every reference that has a PubMed id, keyed by that PubMed id, whatever its object status;
+     * OBJECT_KEY 12 is a reference
+     */
+    public Map<String, RetractedReferences.RefInRgd> getReferencesByPubmedId() throws Exception {
+
+        String sql = """
+            SELECT x.acc_id, i.rgd_id, i.object_status, i.created_date, i.last_modified_date, r.title
+            FROM rgd_acc_xdb x, rgd_ids i, references r
+            WHERE x.xdb_key = 2
+              AND x.rgd_id = i.rgd_id
+              AND i.rgd_id = r.rgd_id
+              AND i.object_key = 12
+            """;
+
+        Map<String, RetractedReferences.RefInRgd> refs = new HashMap<>();
+        Connection conn = refDao.getConnection();
+        try {
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setFetchSize(5000);
+            ResultSet rs = ps.executeQuery();
+            while( rs.next() ) {
+                RetractedReferences.RefInRgd ref = new RetractedReferences.RefInRgd();
+                ref.rgdId = rs.getInt(2);
+                ref.objectStatus = Utils.defaultString(rs.getString(3));
+                ref.createdDate = rs.getDate(4);
+                ref.lastModifiedDate = rs.getDate(5);
+                ref.title = Utils.defaultString(rs.getString(6));
+                refs.put(Utils.defaultString(rs.getString(1)).trim(), ref);
+            }
+            rs.close();
+            ps.close();
+        } finally {
+            conn.close();
+        }
+        return refs;
+    }
+
+    /** replaces the contents of REFERENCES_RETRACTED with the retractions just downloaded */
+    public int refreshRetractedReferences(Collection<RetractedReferences.Retraction> retractions) throws Exception {
+
+        String insertSql = """
+            INSERT INTO references_retracted
+              (original_pmid, retraction_pmid, retraction_date, nature, reason,
+               original_pmid_rgd_id, date_created_in_rgd, date_retracted_in_rgd)
+            VALUES (?,?,?,?,?,?,?,?)
+            """;
+
+        int inserted = 0;
+        Connection conn = refDao.getConnection();
+        try {
+            PreparedStatement psDelete = conn.prepareStatement("DELETE FROM references_retracted");
+            psDelete.executeUpdate();
+            psDelete.close();
+
+            PreparedStatement ps = conn.prepareStatement(insertSql);
+            int batch = 0;
+            for( RetractedReferences.Retraction r: retractions ) {
+                ps.setString(1, r.originalPmid);
+                ps.setString(2, Utils.isStringEmpty(r.retractionPmid) ? null : r.retractionPmid);
+                ps.setDate(3, r.retractionDate==null ? null : new java.sql.Date(r.retractionDate.getTime()));
+                ps.setString(4, r.nature);
+                ps.setString(5, r.reason);
+                if( r.rgdId==null ) {
+                    ps.setNull(6, Types.NUMERIC);
+                } else {
+                    ps.setInt(6, r.rgdId);
+                }
+                ps.setDate(7, r.dateCreatedInRgd==null ? null : new java.sql.Date(r.dateCreatedInRgd.getTime()));
+                ps.setDate(8, r.dateRetractedInRgd==null ? null : new java.sql.Date(r.dateRetractedInRgd.getTime()));
+                ps.addBatch();
+
+                if( ++batch >= 1000 ) {
+                    inserted += Arrays.stream(ps.executeBatch()).sum();
+                    batch = 0;
+                }
+            }
+            if( batch > 0 ) {
+                inserted += Arrays.stream(ps.executeBatch()).sum();
+            }
+            ps.close();
+        } finally {
+            conn.close();
+        }
+        return inserted;
+    }
+
+    /** annotation counts per reference, for the given references only */
+    public Map<Integer, Integer> getAnnotationCounts(Collection<Integer> refRgdIds) throws Exception {
+
+        Map<Integer, Integer> counts = new HashMap<>();
+        if( refRgdIds.isEmpty() ) {
+            return counts;
+        }
+
+        List<Integer> ids = new ArrayList<>(refRgdIds);
+        Connection conn = refDao.getConnection();
+        try {
+            // an Oracle IN list is capped at 1000 entries
+            for( int start=0; start<ids.size(); start+=1000 ) {
+                List<Integer> chunk = ids.subList(start, Math.min(start+1000, ids.size()));
+
+                StringBuilder sql = new StringBuilder(
+                        "SELECT ref_rgd_id, COUNT(*) FROM full_annot WHERE ref_rgd_id IN (");
+                for( int i=0; i<chunk.size(); i++ ) {
+                    sql.append(i>0 ? ",?" : "?");
+                }
+                sql.append(") GROUP BY ref_rgd_id");
+
+                PreparedStatement ps = conn.prepareStatement(sql.toString());
+                for( int i=0; i<chunk.size(); i++ ) {
+                    ps.setInt(i+1, chunk.get(i));
+                }
+                ResultSet rs = ps.executeQuery();
+                while( rs.next() ) {
+                    counts.put(rs.getInt(1), rs.getInt(2));
+                }
+                rs.close();
+                ps.close();
+            }
+        } finally {
+            conn.close();
+        }
+        return counts;
+    }
 }

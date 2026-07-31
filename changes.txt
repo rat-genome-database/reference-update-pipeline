@@ -1,6 +1,8 @@
 Jul 30, 2026
-  added RetractedReferences module (--retractedReferences): reports active RGD references that have been retracted,
-    using the Retraction Watch CSV published by Crossref; source url and CSV column names are bean properties
+  added RetractedReferences module (--retractedReferences): loads retraction data published by Crossref
+    (the Retraction Watch database) into the new REFERENCES_RETRACTED table, and reports retracted references
+    that are still active in RGD, and retracted references already withdrawn in RGD that still have annotations;
+    read only as far as curated data goes -- nothing is withdrawn, retitled or deleted
 
 Jun 30, 2026
   migrated FileDownloader to FileDownloader2; removed unused dependencies (commons-net, httpclient, jaxen); AppConfigure.xml migrated from Spring DTD to XSD schema; removed orphan AuthorQC; updated dependencies

@@ -49,6 +49,20 @@
 
         <!-- how many of the most frequent retraction reasons to write to the debug log -->
         <property name="topReasonCount" value="15"/>
+
+        <!-- RetractionNature value that means the paper really was retracted; the same file also
+             carries 'Correction', 'Expression of concern' and 'Reinstatement', and those must not
+             be reported as retractions -->
+        <property name="retractionNature" value="Retraction"/>
+
+        <!-- date formats tried, in order, against the RetractionDate column -->
+        <property name="retractionDateFormats">
+            <list>
+                <value>M/d/yyyy H:mm</value>
+                <value>M/d/yyyy</value>
+                <value>yyyy-MM-dd</value>
+            </list>
+        </property>
     </bean>
 
     <bean id="importReferencesForAlliance" class="edu.mcw.rgd.ImportReferencesForAlliance">

@@ -75,6 +75,15 @@
             <PatternLayout pattern="[%d{yyyy-MM-dd HH:mm:ss}] - %m%n"/>
             <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
         </File>
+        <!-- the two curator reports; overwritten on every run so they always show the current state -->
+        <File name="retracted_refs_withdrawn" append="false" fileName="logs/retracted_refs_withdrawn.log">
+            <PatternLayout pattern="%m%n"/>
+            <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
+        </File>
+        <File name="retracted_refs_active" append="false" fileName="logs/retracted_refs_active.log">
+            <PatternLayout pattern="%m%n"/>
+            <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
+        </File>
     </Appenders>
 
     <Loggers>
@@ -116,6 +125,12 @@
             <AppenderRef ref="retracted_references"/>
             <AppenderRef ref="retracted_references_summary" level="info"/>
             <AppenderRef ref="Console" level="info"/>
+        </Logger>
+        <Logger name="retracted_refs_withdrawn" level="info" additivity="false">
+            <AppenderRef ref="retracted_refs_withdrawn"/>
+        </Logger>
+        <Logger name="retracted_refs_active" level="info" additivity="false">
+            <AppenderRef ref="retracted_refs_active"/>
         </Logger>
     </Loggers>
 </Configuration>
