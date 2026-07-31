@@ -32,7 +32,8 @@
         <!-- Retraction Watch database, published as a single CSV by Crossref; the 'name' parameter
              is how Crossref asks callers to identify themselves -->
         <property name="retractionWatchUrl" value="https://api.labs.crossref.org/data/retractionwatch?name=mtutaj@mcw.edu"/>
-        <property name="localFile" value="data/retraction_watch.csv"/>
+        <!-- the download is ~65 MB of csv; it is stored gzipped, so the name ends in .gz -->
+        <property name="localFile" value="data/retraction_watch.csv.gz"/>
         <property name="maxRetryCount" value="2"/>
         <property name="downloadRetryInterval" value="20"/>
 

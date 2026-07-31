@@ -8,7 +8,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.BufferedReader;
-import java.io.FileReader;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -396,6 +395,7 @@ public class RetractedReferences {
         fd.setExternalFile(getRetractionWatchUrl());
         fd.setLocalFile(getLocalFile());
         fd.setPrependDateStamp(true);
+        fd.setUseCompression(true); // the download is ~65 MB of csv, so keep it gzipped on disk
         fd.setMaxRetryCount(getMaxRetryCount());
         fd.setDownloadRetryInterval(getDownloadRetryInterval());
 
@@ -417,7 +417,7 @@ public class RetractedReferences {
         int rowsWithoutPmid = 0;
         int unparsableDates = 0;
 
-        BufferedReader in = new BufferedReader(new FileReader(fileName));
+        BufferedReader in = Utils.openReader(fileName); // handles the gzipped download
         try {
             List<String> header = readRecord(in);
             if( header==null ) {

@@ -33,7 +33,8 @@ One further trap: NLM's documentation says retraction notices carry the publicat
 
 So the source is the **Retraction Watch database**, which Crossref publishes as a single free CSV.
 It is one download, it carries the PubMed id of both the retracted paper and its retraction notice,
-and it states the nature and the reason of every retraction.
+and it states the nature and the reason of every retraction. The file is around 65 MB, and is kept
+gzipped on disk (about 14 MB); it is read straight out of the archive, never unpacked.
 
 ## Nature: not everything in the file is a retraction
 
@@ -145,7 +146,7 @@ All on the `retractedReferences` bean in `properties/AppConfigure.xml`:
 |---|---|
 | `dryRun` | when true, report only and change nothing (default) |
 | `retractionWatchUrl` | Crossref download url, including the contact address it asks callers for |
-| `localFile` | where the CSV is downloaded to |
+| `localFile` | where the CSV is downloaded to; stored gzipped, so the name ends in `.gz` |
 | `columns` | logical name to CSV column header, so a rename upstream is a config fix |
 | `retractionNature` | the `RetractionNature` value that means the paper really was retracted |
 | `retractionDateFormats` | date patterns tried, in order, against the retraction date |
