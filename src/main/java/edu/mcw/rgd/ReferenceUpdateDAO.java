@@ -1,13 +1,16 @@
 package edu.mcw.rgd;
 
+import edu.mcw.rgd.dao.impl.AnnotationDAO;
 import edu.mcw.rgd.dao.impl.AssociationDAO;
 import edu.mcw.rgd.dao.impl.OntologyXDAO;
+import edu.mcw.rgd.dao.impl.RGDManagementDAO;
 import edu.mcw.rgd.dao.impl.ReferenceDAO;
 import edu.mcw.rgd.dao.impl.XdbIdDAO;
 import edu.mcw.rgd.dao.spring.IntListQuery;
 import edu.mcw.rgd.datamodel.Author;
 import edu.mcw.rgd.datamodel.Reference;
 import edu.mcw.rgd.datamodel.XdbId;
+import edu.mcw.rgd.datamodel.ontology.Annotation;
 import edu.mcw.rgd.datamodel.ontologyx.Ontology;
 import edu.mcw.rgd.process.Utils;
 import org.apache.logging.log4j.LogManager;
@@ -30,6 +33,8 @@ public class ReferenceUpdateDAO {
     ReferenceDAO refDao = new ReferenceDAO();
     AssociationDAO assDao = new AssociationDAO();
     OntologyXDAO ontDao = new OntologyXDAO();
+    AnnotationDAO annotDao = new AnnotationDAO();
+    RGDManagementDAO rgdManagementDao = new RGDManagementDAO();
 
     public List<Reference> getActiveReferences() throws Exception {
 
@@ -374,6 +379,145 @@ public class ReferenceUpdateDAO {
             }
         }
         return aspectOntologies;
+    }
+
+    /**
+     * every annotation made on the given reference.
+     * <p>
+     * Deliberately not AnnotationDAO.getAnnotationsByReference(): that one joins RGD_IDS on the
+     * annotated object and keeps only ACTIVE ones ("annotations to non-active rgd objects are
+     * skipped!"), which would leave annotations pointing at a withdrawn gene behind in FULL_ANNOT
+     * after their reference had been retracted.
+     */
+    public List<RetractedReferences.AnnotInfo> getAnnotationsByReference(int refRgdId) throws Exception {
+
+        String sql = """
+            SELECT full_annot_key, term_acc, term, aspect, object_symbol,
+                   annotated_object_rgd_id, evidence, data_src
+            FROM full_annot
+            WHERE ref_rgd_id = ?
+            ORDER BY object_symbol, term_acc
+            """;
+
+        List<RetractedReferences.AnnotInfo> annots = new ArrayList<>();
+        Connection conn = refDao.getConnection();
+        try {
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, refRgdId);
+            ResultSet rs = ps.executeQuery();
+            while( rs.next() ) {
+                RetractedReferences.AnnotInfo a = new RetractedReferences.AnnotInfo();
+                a.key = rs.getInt(1);
+                a.termAcc = Utils.defaultString(rs.getString(2));
+                a.term = Utils.defaultString(rs.getString(3));
+                a.aspect = Utils.defaultString(rs.getString(4));
+                a.objectSymbol = Utils.defaultString(rs.getString(5));
+                a.annotatedObjectRgdId = rs.getInt(6);
+                a.evidence = Utils.defaultString(rs.getString(7));
+                a.dataSrc = Utils.defaultString(rs.getString(8));
+                annots.add(a);
+            }
+            rs.close();
+            ps.close();
+        } finally {
+            conn.close();
+        }
+        return annots;
+    }
+
+    public int deleteAnnotations(List<Integer> annotKeys) throws Exception {
+        return annotDao.deleteAnnotations(annotKeys);
+    }
+
+    /** marks the reference withdrawn in RGD_IDS */
+    public void withdrawReference(Reference ref) throws Exception {
+        rgdManagementDao.withdraw(ref);
+    }
+
+    /**
+     * copies the given annotations into FULL_ANNOT_RETRACTED, stamping LAST_MODIFIED_DATE with the
+     * time of the move. The copy is done in SQL rather than from Annotation objects so that every
+     * column is preserved -- CURATION_FLAG, for one, has no counterpart in the data model.
+     * @return number of annotations archived
+     */
+    public int archiveAnnotations(List<Integer> annotKeys) throws Exception {
+
+        int archived = 0;
+        Connection conn = refDao.getConnection();
+        try {
+            for( int i=0; i<annotKeys.size(); i+=1000 ) {
+                String inPhrase = Utils.buildInPhrase(annotKeys.subList(i, Math.min(i+1000, annotKeys.size())));
+
+                // already-archived rows are skipped, so a re-run cannot duplicate them
+                PreparedStatement ps = conn.prepareStatement("""
+                    INSERT INTO full_annot_retracted
+                    SELECT * FROM full_annot
+                    WHERE full_annot_key IN(%s)
+                      AND full_annot_key NOT IN(SELECT full_annot_key FROM full_annot_retracted)
+                    """.formatted(inPhrase));
+                archived += ps.executeUpdate();
+                ps.close();
+
+                PreparedStatement psStamp = conn.prepareStatement(
+                        "UPDATE full_annot_retracted SET last_modified_date=SYSDATE WHERE full_annot_key IN(" + inPhrase + ")");
+                psStamp.executeUpdate();
+                psStamp.close();
+            }
+        } finally {
+            conn.close();
+        }
+        return archived;
+    }
+
+    /**
+     * PhenoMiner and gene expression studies that cite any of the given references, either directly
+     * on STUDY or through STUDY_REFERENCES. Reported only -- nothing is modified.
+     */
+    public List<RetractedReferences.StudyInRgd> getStudiesForReferences(Collection<Integer> refRgdIds) throws Exception {
+
+        List<RetractedReferences.StudyInRgd> studies = new ArrayList<>();
+        if( refRgdIds.isEmpty() ) {
+            return studies;
+        }
+
+        List<Integer> ids = new ArrayList<>(refRgdIds);
+        Connection conn = refDao.getConnection();
+        try {
+            for( int i=0; i<ids.size(); i+=1000 ) {
+                String inPhrase = Utils.buildInPhrase(ids.subList(i, Math.min(i+1000, ids.size())));
+
+                PreparedStatement ps = conn.prepareStatement("""
+                    SELECT s.study_id, s.study_name, s.study_type, s.data_type, x.ref_rgd_id,
+                           (SELECT COUNT(*) FROM experiment_record er, experiment e
+                             WHERE er.experiment_id=e.experiment_id AND e.study_id=s.study_id),
+                           (SELECT COUNT(*) FROM gene_expression_exp_record ger, experiment e
+                             WHERE ger.experiment_id=e.experiment_id AND e.study_id=s.study_id)
+                    FROM study s,
+                         (SELECT study_id, ref_rgd_id FROM study WHERE ref_rgd_id IN(%s)
+                          UNION
+                          SELECT study_id, ref_rgd_id FROM study_references WHERE ref_rgd_id IN(%s)) x
+                    WHERE s.study_id = x.study_id
+                    """.formatted(inPhrase, inPhrase));
+
+                ResultSet rs = ps.executeQuery();
+                while( rs.next() ) {
+                    RetractedReferences.StudyInRgd s = new RetractedReferences.StudyInRgd();
+                    s.studyId = rs.getInt(1);
+                    s.studyName = Utils.defaultString(rs.getString(2));
+                    s.studyType = Utils.defaultString(rs.getString(3));
+                    s.dataType = Utils.defaultString(rs.getString(4));
+                    s.refRgdId = rs.getInt(5);
+                    s.phenominerRecords = rs.getInt(6);
+                    s.expressionRecords = rs.getInt(7);
+                    studies.add(s);
+                }
+                rs.close();
+                ps.close();
+            }
+        } finally {
+            conn.close();
+        }
+        return studies;
     }
 
     /** annotation counts per reference, broken down by aspect and by data source */

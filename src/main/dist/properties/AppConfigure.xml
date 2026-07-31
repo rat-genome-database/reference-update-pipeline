@@ -57,6 +57,13 @@
              be reported as retractions -->
         <property name="retractionNature" value="Retraction"/>
 
+        <!-- prepended to the title of a reference when it is withdrawn as retracted -->
+        <property name="titlePrefix" value="RETRACTED: "/>
+
+        <!-- when true, the module reports what it would do but withdraws nothing, retitles nothing
+             and moves no annotations out of FULL_ANNOT. Set to false to let it act. -->
+        <property name="dryRun" value="true"/>
+
         <!-- date formats tried, in order, against the RetractionDate column -->
         <property name="retractionDateFormats">
             <list>

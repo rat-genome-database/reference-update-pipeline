@@ -84,6 +84,17 @@
             <PatternLayout pattern="%m%n"/>
             <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
         </File>
+        <!-- appended to, not overwritten: this is the record of what was removed from FULL_ANNOT -->
+        <RollingFile name="retracted_annotations" append="true" fileName="logs/retracted_annotations.log" filePattern="logs/retracted_annotations.log.%d{yyyy-MM}">
+            <PatternLayout pattern="[%d{yyyy-MM-dd HH:mm:ss}] - %m%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+            </Policies>
+        </RollingFile>
+        <File name="retracted_studies" append="false" fileName="logs/retracted_studies.log">
+            <PatternLayout pattern="%m%n"/>
+            <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
+        </File>
     </Appenders>
 
     <Loggers>
@@ -131,6 +142,12 @@
         </Logger>
         <Logger name="retracted_refs_active" level="info" additivity="false">
             <AppenderRef ref="retracted_refs_active"/>
+        </Logger>
+        <Logger name="retracted_annotations" level="info" additivity="false">
+            <AppenderRef ref="retracted_annotations"/>
+        </Logger>
+        <Logger name="retracted_studies" level="info" additivity="false">
+            <AppenderRef ref="retracted_studies"/>
         </Logger>
     </Loggers>
 </Configuration>

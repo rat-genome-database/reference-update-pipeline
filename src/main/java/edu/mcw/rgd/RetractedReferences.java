@@ -1,5 +1,7 @@
 package edu.mcw.rgd;
 
+import edu.mcw.rgd.datamodel.Reference;
+import edu.mcw.rgd.datamodel.ontology.Annotation;
 import edu.mcw.rgd.process.FileDownloader2;
 import edu.mcw.rgd.process.Utils;
 import org.apache.logging.log4j.LogManager;
@@ -43,6 +45,8 @@ public class RetractedReferences {
     private static final Logger log = LogManager.getLogger("retracted_references");
     private static final Logger logWithdrawn = LogManager.getLogger("retracted_refs_withdrawn");
     private static final Logger logActive = LogManager.getLogger("retracted_refs_active");
+    private static final Logger logDeleted = LogManager.getLogger("retracted_annotations");
+    private static final Logger logStudies = LogManager.getLogger("retracted_studies");
 
     private String retractionWatchUrl;
     private String localFile;
@@ -52,6 +56,8 @@ public class RetractedReferences {
     private int topReasonCount;
     private String retractionNature;
     private List<String> retractionDateFormats;
+    private String titlePrefix;
+    private boolean dryRun;
 
     // FULL_ANNOT.ASPECT to the ontology its terms come from; read from the database, not configured
     private Map<String, String> aspectOntologies = new HashMap<>();
@@ -93,6 +99,8 @@ public class RetractedReferences {
 
         reportMatchesByNature(retractions);
         report(dao, retracted);
+        reportStudies(dao, retracted);
+        retract(dao, retracted);
 
         log.info("===");
     }
@@ -221,6 +229,112 @@ public class RetractedReferences {
         log.info("ANNOTATIONS ON REFERENCES STILL ACTIVE IN RGD: " + activeAnnots);
         log.info("   by ontology:    " + formatAspects(activeByAspect));
         log.info("   by data source: " + formatCounts(activeBySource));
+    }
+
+    /**
+     * PhenoMiner and gene expression studies built on a retracted paper. Reported only: the
+     * experiment records keep their curation status until that side is implemented.
+     */
+    void reportStudies(ReferenceUpdateDAO dao, List<Retraction> retracted) throws Exception {
+
+        List<Integer> refRgdIds = new ArrayList<>();
+        for( Retraction r: retracted ) {
+            refRgdIds.add(r.rgdId);
+        }
+        List<StudyInRgd> studies = dao.getStudiesForReferences(refRgdIds);
+
+        log.info("STUDIES BUILT ON A RETRACTED REFERENCE: " + studies.size());
+        if( studies.isEmpty() ) {
+            return;
+        }
+
+        logStudies.info("=== STUDIES BUILT ON A RETRACTED REFERENCE ===");
+        logStudies.info("These need a curator's attention: the experiment records behind them are NOT");
+        logStudies.info("touched by this pipeline, so their curation status is unchanged.");
+        for( StudyInRgd s: studies ) {
+            logStudies.info("STUDY:" + s.studyId + "  RGD:" + s.refRgdId
+                    + "  phenominer records:" + s.phenominerRecords
+                    + "  expression records:" + s.expressionRecords
+                    + "  type:" + s.studyType
+                    + (s.dataType.isEmpty() ? "" : "  data type:" + s.dataType)
+                    + "\n      " + s.studyName);
+        }
+        logStudies.info("--- studies needing review: " + studies.size());
+        log.warn("STUDIES BUILT ON A RETRACTED REFERENCE NEED CURATOR REVIEW: " + studies.size());
+    }
+
+    /**
+     * withdraws each retracted reference, marks its title, and moves its annotations out of
+     * FULL_ANNOT into FULL_ANNOT_RETRACTED. Annotations are moved whatever the reference's status,
+     * because a reference withdrawn by hand can still be carrying them.
+     */
+    void retract(ReferenceUpdateDAO dao, List<Retraction> retracted) throws Exception {
+
+        if( isDryRun() ) {
+            log.warn("DRY RUN: nothing was withdrawn, retitled or moved."
+                    + " Set 'dryRun' to false on the retractedReferences bean to apply the changes.");
+        }
+
+        int annotsMoved = 0;
+        int refsWithdrawn = 0;
+        int titlesMarked = 0;
+
+        for( Retraction r: retracted ) {
+
+            List<AnnotInfo> annots = dao.getAnnotationsByReference(r.rgdId);
+            if( !annots.isEmpty() ) {
+                List<Integer> keys = new ArrayList<>();
+                for( AnnotInfo a: annots ) {
+                    keys.add(a.key);
+                    logDeleted.info("RGD:" + r.rgdId + "  PMID:" + r.originalPmid
+                            + "  annot_key:" + a.key
+                            + "  " + a.termAcc + " [" + a.term + "]"
+                            + "  aspect:" + a.aspect
+                            + "  object:" + a.objectSymbol + " (RGD:" + a.annotatedObjectRgdId + ")"
+                            + "  evidence:" + a.evidence
+                            + "  src:" + a.dataSrc);
+                }
+
+                if( !isDryRun() ) {
+                    int archived = dao.archiveAnnotations(keys);
+                    int deleted = dao.deleteAnnotations(keys);
+                    if( archived != deleted ) {
+                        log.warn("RGD:" + r.rgdId + ": archived " + archived + " annotations but deleted "
+                                + deleted + "; the difference was already in FULL_ANNOT_RETRACTED");
+                    }
+                }
+                annotsMoved += keys.size();
+            }
+
+            // a reference withdrawn earlier, by a curator or a previous run, is left as it is
+            if( RefInRgd.ACTIVE.equals(r.objectStatus) ) {
+                Reference ref = dao.getReference(r.rgdId);
+                if( ref==null ) {
+                    log.warn("RGD:" + r.rgdId + " has no reference record; not withdrawn");
+                    continue;
+                }
+
+                String title = Utils.defaultString(ref.getTitle());
+                if( !title.startsWith(getTitlePrefix()) ) {
+                    if( !isDryRun() ) {
+                        ref.setTitle(getTitlePrefix() + title);
+                        dao.updateReferenceField(ref);
+                    }
+                    titlesMarked++;
+                }
+
+                if( !isDryRun() ) {
+                    dao.withdrawReference(ref);
+                }
+                refsWithdrawn++;
+                logWithdrawn.info("WITHDRAWN RGD:" + r.rgdId + "  PMID:" + r.originalPmid
+                        + "  annotations moved:" + annots.size());
+            }
+        }
+
+        log.info((isDryRun() ? "WOULD BE " : "") + "ANNOTATIONS MOVED TO FULL_ANNOT_RETRACTED: " + annotsMoved);
+        log.info((isDryRun() ? "WOULD BE " : "") + "REFERENCES WITHDRAWN: " + refsWithdrawn);
+        log.info((isDryRun() ? "WOULD BE " : "") + "TITLES MARKED '" + getTitlePrefix() + "': " + titlesMarked);
     }
 
     String describe(Retraction r) {
@@ -539,6 +653,29 @@ public class RetractedReferences {
         }
     }
 
+    /** one annotation about to be moved out of FULL_ANNOT, with enough detail for the curator log */
+    public static class AnnotInfo {
+        public int key;
+        public String termAcc;
+        public String term;
+        public String aspect;
+        public String objectSymbol;
+        public int annotatedObjectRgdId;
+        public String evidence;
+        public String dataSrc;
+    }
+
+    /** a PhenoMiner or gene expression study built on a retracted reference */
+    public static class StudyInRgd {
+        public int studyId;
+        public int refRgdId;
+        public String studyName;
+        public String studyType;
+        public String dataType;
+        public int phenominerRecords;
+        public int expressionRecords;
+    }
+
     /** the annotations a reference carries, broken down for the report */
     public static class AnnotStats {
         public int total;
@@ -628,5 +765,21 @@ public class RetractedReferences {
 
     public Map<String, String> getAspectOntologies() {
         return aspectOntologies;
+    }
+
+    public void setTitlePrefix(String titlePrefix) {
+        this.titlePrefix = titlePrefix;
+    }
+
+    public String getTitlePrefix() {
+        return titlePrefix;
+    }
+
+    public void setDryRun(boolean dryRun) {
+        this.dryRun = dryRun;
+    }
+
+    public boolean isDryRun() {
+        return dryRun;
     }
 }

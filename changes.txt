@@ -1,4 +1,9 @@
 Jul 31, 2026
+  RetractedReferences: implemented the retraction itself -- a retracted reference is withdrawn, "RETRACTED: " is
+    prepended to its title, and its annotations are moved from FULL_ANNOT to the new FULL_ANNOT_RETRACTED table
+    (whatever the reference's status), with every moved annotation written to retracted_annotations.log for curators;
+    PhenoMiner/gene expression studies built on a retracted reference are reported only, not yet modified;
+    guarded by a 'dryRun' bean property, ON by default
   RetractedReferences: REFERENCES_RETRACTED is synchronized incrementally (insert/update/delete) instead of
     being reloaded from scratch; keyed on the new RECORD_ID column, which carries a unique index
 
