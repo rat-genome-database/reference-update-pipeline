@@ -1,3 +1,6 @@
+Oct 20, 2026
+  migrated to postgres; updated dependencies
+
 Jul 31, 2026
   RetractedReferences: the downloaded Retraction Watch csv is stored gzipped (65 MB down to 14 MB)
   RetractedReferences: implemented the retraction itself -- a retracted reference is withdrawn, "RETRACTED: " is

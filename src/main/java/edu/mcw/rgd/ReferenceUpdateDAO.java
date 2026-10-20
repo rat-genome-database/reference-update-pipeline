@@ -101,13 +101,15 @@ public class ReferenceUpdateDAO {
     }
 
     public void fixDuplicateAuthors() throws Exception {
-        String sql1 = "SELECT a1.author_key,a2.author_key,a1.author_lname,a2.author_fname,a1.author_iname,a1.author_suffix FROM authors a1,authors a2\n" +
-                "WHERE a1.author_key < a2.author_key\n" +
-                "  AND nvl(a1.author_lname,'?')=nvl(a2.author_lname,'?')\n" +
-                "  AND nvl(a1.author_fname,'?')=nvl(a2.author_fname,'?')\n" +
-                "  AND nvl(a1.author_iname,'?')=nvl(a2.author_iname,'?')\n" +
-                "  AND nvl(a1.author_suffix,'?')=nvl(a2.author_suffix,'?')\n" +
-                "ORDER BY dbms_random.random";
+        String sql1 = """
+            SELECT a1.author_key,a2.author_key,a1.author_lname,a2.author_fname,a1.author_iname,a1.author_suffix FROM authors a1,authors a2
+            WHERE a1.author_key < a2.author_key
+              AND COALESCE(a1.author_lname,'?')=COALESCE(a2.author_lname,'?')
+              AND COALESCE(a1.author_fname,'?')=COALESCE(a2.author_fname,'?')
+              AND COALESCE(a1.author_iname,'?')=COALESCE(a2.author_iname,'?')
+              AND COALESCE(a1.author_suffix,'?')=COALESCE(a2.author_suffix,'?')
+            ORDER BY RANDOM()
+            """;
         String sql2 = "UPDATE rgd_ref_author SET author_key=? WHERE author_key=?";
         String sql3 = "DELETE FROM authors WHERE author_key=?";
 
@@ -156,13 +158,13 @@ public class ReferenceUpdateDAO {
     }
 
     public int getLastReferenceWithPmcId() throws Exception {
-        String sql = "SELECT MAX(r.rgd_id) FROM references r,rgd_acc_xdb x where r.rgd_id=x.rgd_id and xdb_key=146";
+        String sql = "SELECT MAX(r.rgd_id) FROM \"references\" r,rgd_acc_xdb x where r.rgd_id=x.rgd_id and xdb_key=146";
         return xdbIdDao.getCount(sql);
     }
 
     public List<Integer> getActiveReferenceRgdIds(int minRgdId) throws Exception {
         String sql = """
-            SELECT x.rgd_id FROM references r,rgd_acc_xdb x,rgd_ids i
+            SELECT x.rgd_id FROM "references" r,rgd_acc_xdb x,rgd_ids i
             WHERE r.rgd_id=x.rgd_id AND x.rgd_id=i.rgd_id AND object_status='ACTIVE' AND x.rgd_id>?
             ORDER BY x.rgd_id
             """;
@@ -189,7 +191,7 @@ public class ReferenceUpdateDAO {
 
         String sql = """
             SELECT x.acc_id, i.rgd_id, i.object_status, i.created_date, i.last_modified_date, r.title
-            FROM rgd_acc_xdb x, rgd_ids i, references r
+            FROM rgd_acc_xdb x, rgd_ids i, "references" r
             WHERE x.xdb_key = 2
               AND x.rgd_id = i.rgd_id
               AND i.rgd_id = r.rgd_id
@@ -459,7 +461,7 @@ public class ReferenceUpdateDAO {
                 ps.close();
 
                 PreparedStatement psStamp = conn.prepareStatement(
-                        "UPDATE full_annot_retracted SET last_modified_date=SYSDATE WHERE full_annot_key IN(" + inPhrase + ")");
+                        "UPDATE full_annot_retracted SET last_modified_date=LOCALTIMESTAMP(0) WHERE full_annot_key IN(" + inPhrase + ")");
                 psStamp.executeUpdate();
                 psStamp.close();
             }

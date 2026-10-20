@@ -20,13 +20,13 @@
 -- reinstatement; only 'Retraction' means the paper was actually retracted.
 
 CREATE TABLE references_retracted (
-    record_id              NUMBER NOT NULL,
-    original_pmid          VARCHAR2(20) NOT NULL,
-    retraction_pmid        VARCHAR2(20),
+    record_id              BIGINT NOT NULL,
+    original_pmid          VARCHAR(20) NOT NULL,
+    retraction_pmid        VARCHAR(20),
     retraction_date        DATE,
-    nature                 VARCHAR2(100),
-    reason                 VARCHAR2(2000),
-    original_pmid_rgd_id   NUMBER,
+    nature                 VARCHAR(100),
+    reason                 VARCHAR(2000),
+    original_pmid_rgd_id   INTEGER,
     date_created_in_rgd    DATE,
     date_retracted_in_rgd  DATE
 );
